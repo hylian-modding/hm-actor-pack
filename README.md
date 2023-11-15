@@ -1,154 +1,88 @@
-# The Legend of Zelda: Ocarina of Time
+# Hylian Modding OoT Decomp Actor Pack
 
-[![Build Status][jenkins-badge]][jenkins] [![Decompilation Progress][progress-badge]][progress] [![Contributors][contributors-badge]][contributors] [![Discord Channel][discord-badge]][discord]
+This is a custom actor pack intended for use with the [Ocarina of Time decompilation project by ZeldaRET.](https://github.com/zeldaret/oot)
 
-[jenkins]: https://jenkins.deco.mp/job/OOT/job/main
-[jenkins-badge]: https://img.shields.io/jenkins/build?jobUrl=https%3A%2F%2Fjenkins.deco.mp%2Fjob%2FOOT%2Fjob%2Fmain
+In this pack, you'll find the following custom actors:
+* **Scalable, rotatable fans**
+  * Push Link and bombs around 
+* **Floor spikes with various modes** 
+  * Cyclic, pressure-sensitive, switch flag dependent, etc.
+* **Hammer pegs**
+  * Useful for blocking players before they have the hammer
+* **Red/blue platforms**
+  * Toggle between two rotations when Link leaves the ground
+* **Configurable ladders**
+  * Wooden (hookshotable) or metal (non-hookshotable)
+  * Can either fade in on switch flag, or drop to the ground when hit with bow/slingshot
+* **Metal crates**
+  * Can only be broken with the hammer 
+* **Configurable platforms**
+  * Various themes/textures
+  * Can either fade in on switch flag, or hover in the air
+* **Wall pull switch**
+  * Can retract on a timer and unset switch flag when fully retracted 
+* **Rat enemy**
+* **Pols Voice enemy**
+  * Weak to only arrows 
+* **Wizzrobe enemy**
+  * Attacks with fire and ice spells
+  * Can spawn other enemies 
+* **Zol enemy**
+  * Slime monster that can split in two 
 
-[progress]: https://zelda64.dev/games/oot
-[progress-badge]: https://img.shields.io/endpoint?url=https://zelda64.dev/assets/csv/progress-oot-shield.json
+For more information, visit us at the links below:
 
-[contributors]: https://github.com/zeldaret/oot/graphs/contributors
-[contributors-badge]: https://img.shields.io/github/contributors/zeldaret/oot
+* **Website:** <https://hylianmodding.com/>
+* **Discord:** <https://discord.com/invite/nGFZ394>
 
-[discord]: https://discord.zelda64.dev
-[discord-badge]: https://img.shields.io/discord/688807550715560050?color=%237289DA&logo=discord&logoColor=%23FFFFFF
+## Setting up
 
-```diff
-- WARNING! -
+There are a few ways that you can get started with this actor pack.
 
-This repository is a work in progress, and while it can be used to make certain changes, it's still
-constantly evolving. If you use it for modding purposes in its current state, please be aware that
-the codebase can drastically change at any time. Also note that some parts of the ROM may not be
-'shiftable' yet, so modifying them could be difficult at this point.
+### Method #1 - Git Patches
+We recommend you try this method first. To begin, follow the [installation guide for the Ocarina of Time decompilation project](https://github.com/zeldaret/oot#installation) to get a repository up and running. Once you have a ROM building, download the `hm_pack.patch` file (and optionally, `hm_pack_test_map.patch`) from here. Place the patches in the root folder of your base OoT decomp repo. Next, run the following command:
+
+```
+git apply hm_pack.patch
 ```
 
-This is a WIP **decompilation** of ***The Legend of Zelda: Ocarina of Time***. The purpose of the project is to recreate a source code base for the game from scratch, using information found inside the game along with static and/or dynamic analysis. **It is not producing a PC port.** For more information you can get in touch with the team on our [Discord server](https://discord.zelda64.dev).
+You may see some warnings about whitespace or line breaks-- that's okay. Check in your repo's root folder to see if there's an `assets_hm_pack` folder. If so, it's likely the patch has worked!
 
-The only build currently supported is Master Quest (Debug), but other versions are planned to be supported.
-
-It builds the following ROM:
-
-* zelda_ocarina_mq_dbg.z64 `md5: f0b7f35375f9cc8ca1b2d59d78e35405`
-
-**Note: This repository does not include any of the assets necessary to build the ROM. A prior copy of the game is required to extract the needed assets.**
-
-**Website:** <https://zelda64.dev>
-
-**Discord:** <https://discord.zelda64.dev>
-
-## Installation
-
-We recommend using WSL on Windows, or native Linux, which the rest of this readme describes. We currently have instructions for
-
-* [Windows](#Windows), with and without WSL
-* [macOS](docs/BUILDING_MACOS.md)
-* [Linux](#Linux-Native-or-under-WSL--VM), natively or using WSL / VM
-* [Docker](docs/BUILDING_DOCKER.md)
-
-(These will also depend on the Linux instructions.)
-Some of these may also be out of date or unmaintained; usually our contributors use WSL, Linux, and macOS, so these instructions should be up to date.
-
-### Windows
-
-For Windows 10 or 11, install WSL and a distribution by following this
-[WSL Installation Guide](https://docs.microsoft.com/en-us/windows/wsl/install).
-We recommend using Ubuntu 20.04 as the Linux distribution.
-
-For older versions of Windows, install a Linux VM or refer to either [Cygwin](docs/BUILDING_CYGWIN.md) or [Docker](docs/BUILDING_DOCKER.md) instructions.
-
-
-### Linux (Native or under WSL / VM)
-
-#### 1. Install build dependencies
-
-The build process has the following package requirements:
-
-* git
-* build-essential
-* binutils-mips-linux-gnu
-* python3
-* libpng-dev
-
-Under Debian / Ubuntu (which we recommend using), you can install them with the following commands:
-
-```bash
-sudo apt-get update
-sudo apt-get install git build-essential binutils-mips-linux-gnu python3 libpng-dev
+Now, you can optionally do the same for the `hm_pack_test_map.patch` file to add a test map with example use cases for all the actors in this pack. It will appear at the end of the map select in the game.
+```
+git apply hm_pack_test_map.patch
 ```
 
-If you are using GCC as the compiler for Ocarina of Time, you will also need:
+Finally, run:
+```
+make distclean && make setup && make
+```
+If all went well, the built ROM should contain the actors (and test map, if you applied that patch)!
 
-* gcc-mips-linux-gnu
+### Method #2 - Copy & Paste
+This method is more suited for those wishing to incorporate the actor pack into an existing modded repo. We'll assume you already have a repo set up and can build a ROM with it. First, copy all of the following into your repo:
 
-#### 2. Clone the repository
-
-**N.B.** If using WSL, we strongly encourage you to clone into WSL's Linux filesystem using Linux's `git`.
-Cloning into the Windows filesystem will result in much slower read/write speeds, and often causes issues when Windows copies the files with the wrong line endings, which the compiler IDO cannot handle correctly.
-
-Clone `https://github.com/zeldaret/oot.git` where you wish to have the project, with a command such as:
-
-```bash
-git clone https://github.com/zeldaret/oot.git
+```
+Makefile
+spec.hm_pack_actors.inc
+spec.hm_pack_objects.inc
+assets_hm_pack/
+src/overlays/actors/hm_pack/
+include/tables/hm_pack/
 ```
 
-This will copy the GitHub repository contents into a new folder in the current directory called `oot`. Change into this directory before doing anything else:
-
-```bash
-cd oot
+If you're uncomfortable overwriting the Makefile, or if the decomp repo has made changes to it we haven't merged into this repo yet, just make sure you copy over the relevant changes to yours. If you want to add the test map, you'll have to add: the scene and rooms files to spec, an entry for it in scene_table.h, entrances for it in entrance_table.h, and a map select entry for it in z_select. Now, run the following commands:
 ```
-
-#### 3. Prepare a base ROM
-
-Copy over your copy of the Master Quest (Debug) ROM inside the root of this new project directory.
-Rename the file to "baserom_original.z64", "baserom_original.n64" or "baserom_original.v64", depending on the original extension.
-
-#### 4. Setup the ROM and build process
-
-Setup and extract everything from your ROM with the following command:
-
-```bash
-make setup
+make distclean && make setup && make
 ```
+You should now have a ROM built successfully!
 
-This will generate a new ROM called "baserom.z64" that will have the overdump removed and the header patched.
-It will also extract the individual assets from the ROM.
+### Method #3 - Cloning This Repo
+If you want to start your modding project from scratch using this actor pack as a base, this method is for you. Simply ``git clone`` this repo, then follow the OoT decomp installation guide as normal.
 
-#### 5. Build the ROM
-
-Run make to build the ROM.
-Make sure your path to the project is not too long, otherwise this process may error.
-
-```bash
-make
+**NOTE:** There's always a chance that this repo is out of sync with the main decomp repo. To ensure you're not missing anything, we recommend you add the main decomp repo as a remote, then fetch and merge the latest commits. It's good practice to do this often. Here's how to start:
 ```
-
-If all goes well, a new ROM called "zelda_ocarina_mq_debug.z64" should be built and the following text should be printed:
-
-```bash
-zelda_ocarina_mq_dbg.z64: OK
+git remote add upstream [GIT CLONE LINK FOR OOT DECOMP REPO]
+git fetch upstream
+git merge upstream/main
 ```
-
-If you instead see the following:
-
-```bash
-zelda_ocarina_mq_dbg.z64: FAILED
-md5sum: WARNING: 1 computed checksum did NOT match
-```
-
-This means that the built ROM isn't the same as the base one, so something went wrong or some part of the code doesn't match.
-
-**NOTE:** to speed up the build, you can either:
-
-* pass `-jN` to `make setup` and `make`, where N is the number of threads to use in the build. The generally-accepted wisdom is to use the number of virtual cores your computer has.
-* pass `-j` to `make setup` and `make`, to use as many threads as possible, but beware that this can use too much memory on lower-end systems.
-
-Both of these have the disadvantage that the ordering of the terminal output is scrambled, so for debugging it is best to stick to one thread (i.e. not pass `-j` or `-jN`).
-
-
-## Contributing
-
-All contributions are welcome. This is a group effort, and even small contributions can make a difference.
-Some tasks also don't require much knowledge to get started.
-
-Most discussions happen on our [Discord Server](https://discord.zelda64.dev), where you are welcome to ask if you need help getting started, or if you have any questions regarding this project and other decompilation projects.
