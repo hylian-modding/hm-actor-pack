@@ -30,6 +30,15 @@ In this pack, you'll find the following custom actors:
 * **Zol enemy**
   * Slime monster that can split in two 
 
+You can find notes for each of these actor inside their C source files located at ``src/overlays/actors/hm_pack/``.
+
+**Created by**:
+* CDi-Fails
+* KentonM
+* Hiisuya
+* ZeeRoX
+* Aegiker
+
 For more information, visit us at the links below:
 
 * **Website:** <https://hylianmodding.com/>
