@@ -11,12 +11,10 @@ typedef void (*PlatformsActionFunc)(struct Platforms*, PlayState*);
 typedef struct Platforms {
     DynaPolyActor dyna;
     PlatformsActionFunc actionFunc;
-    Vec3f targetPos;
+    f32 dipOffset;
     u16 timer;
     s16 alphaTarget;
     s16 alpha;
-    u8 coneDipPlayer;
-    u8 coneDipReturn;
     u8 playerOn;
 } Platforms;
 
