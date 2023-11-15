@@ -1,0 +1,6 @@
+extern u64 gPlatform_CheckWoodDL_gPlatform_CheckWoodDL_ZELDA_MAJORA_S_MASK_38716CF1_2_1_F84E_ci8[];
+extern u64 gPlatform_CheckWoodDL_gPlatform_CheckWoodDL_ZELDA_MAJORA_S_MASK_38716CF1_2_1_F84E_pal_rgba16[];
+extern Vtx gPlatform_CheckWoodDL_gPlatform_CheckWoodDL_mesh_layer_Opaque_vtx_0[26];
+extern Gfx gPlatform_CheckWoodDL_gPlatform_CheckWoodDL_mesh_layer_Opaque_tri_0[];
+extern Gfx mat_gPlatform_CheckWoodDL_f3dlite_material_009[];
+extern Gfx gPlatform_CheckWoodDL[];

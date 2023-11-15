@@ -1,0 +1,7 @@
+extern u64 gSpikePadMediumDL_Spike_Pad_00_ci4[];
+extern u64 gSpikePadMediumDL_Spike_Pad_00_pal_rgba16[];
+extern Vtx gSpikePadMediumDL_gSpikePadMediumDL_mesh_layer_Opaque_vtx_cull[8];
+extern Vtx gSpikePadMediumDL_gSpikePadMediumDL_mesh_layer_Opaque_vtx_0[20];
+extern Gfx gSpikePadMediumDL_gSpikePadMediumDL_mesh_layer_Opaque_tri_0[];
+extern Gfx mat_gSpikePadMediumDL_SpikePad_layerOpaque[];
+extern Gfx gSpikePadMediumDL[];

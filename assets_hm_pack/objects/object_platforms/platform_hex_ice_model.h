@@ -1,0 +1,15 @@
+extern u64 gPlatform_HexIceDL_gPlatform_HexIceDL_IC_0x1F650_32x64_RGBA16_rgba16_rgba16[];
+extern u64 gPlatform_HexIceDL_gPlatform_HexIceDL_IC_0x376F8_64x64_CI4_ci4_ci4[];
+extern u64 gPlatform_HexIceDL_gPlatform_HexIceDL_IC_0x376F8_64x64_CI4_ci4_pal_rgba16[];
+extern u64 gPlatform_HexIceDL_gPlatform_HexIceDL_IC_0x20650_32x32_RGBA16_ci8_ci8[];
+extern u64 gPlatform_HexIceDL_gPlatform_HexIceDL_IC_0x20650_32x32_RGBA16_ci8_pal_rgba16[];
+extern Vtx gPlatform_HexIceDL_gPlatform_HexIceDL_mesh_layer_Opaque_vtx_0[14];
+extern Gfx gPlatform_HexIceDL_gPlatform_HexIceDL_mesh_layer_Opaque_tri_0[];
+extern Vtx gPlatform_HexIceDL_gPlatform_HexIceDL_mesh_layer_Opaque_vtx_1[6];
+extern Gfx gPlatform_HexIceDL_gPlatform_HexIceDL_mesh_layer_Opaque_tri_1[];
+extern Vtx gPlatform_HexIceDL_gPlatform_HexIceDL_mesh_layer_Opaque_vtx_2[6];
+extern Gfx gPlatform_HexIceDL_gPlatform_HexIceDL_mesh_layer_Opaque_tri_2[];
+extern Gfx mat_gPlatform_HexIceDL_f3dlite_material_015[];
+extern Gfx mat_gPlatform_HexIceDL_f3dlite_material_016[];
+extern Gfx mat_gPlatform_HexIceDL_f3dlite_material_017[];
+extern Gfx gPlatform_HexIceDL[];

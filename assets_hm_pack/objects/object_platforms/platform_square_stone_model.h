@@ -1,0 +1,6 @@
+extern u64 gPlatform_StoneDL_gPlatform_StoneDL_rock_box_textire_ci8_ci8[];
+extern u64 gPlatform_StoneDL_gPlatform_StoneDL_rock_box_textire_ci8_pal_rgba16[];
+extern Vtx gPlatform_StoneDL_gPlatform_StoneDL_mesh_layer_Opaque_vtx_0[38];
+extern Gfx gPlatform_StoneDL_gPlatform_StoneDL_mesh_layer_Opaque_tri_0[];
+extern Gfx mat_gPlatform_StoneDL_f3dlite_material_010[];
+extern Gfx gPlatform_StoneDL[];

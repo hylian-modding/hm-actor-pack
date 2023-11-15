@@ -1,0 +1,6 @@
+extern u64 gPlatform_CheckStoneDL_stone_floor_square_spiders_ci4[];
+extern u64 gPlatform_CheckStoneDL_stone_floor_square_spiders_pal_rgba16[];
+extern Vtx gPlatform_CheckStoneDL_gPlatform_CheckStoneDL_mesh_layer_Opaque_vtx_0[24];
+extern Gfx gPlatform_CheckStoneDL_gPlatform_CheckStoneDL_mesh_layer_Opaque_tri_0[];
+extern Gfx mat_gPlatform_CheckStoneDL_f3dlite_material_011[];
+extern Gfx gPlatform_CheckStoneDL[];

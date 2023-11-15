@@ -1,0 +1,4 @@
+extern SurfaceType gPlatform_HexGrassDL_polygonTypes[];
+extern CollisionPoly gPlatform_HexGrassDL_polygons[];
+extern Vec3s gPlatform_HexGrassDL_vertices[13];
+extern CollisionHeader gPlatform_HexGrassDL_collisionHeader;

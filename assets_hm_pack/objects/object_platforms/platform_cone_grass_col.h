@@ -1,0 +1,4 @@
+extern SurfaceType gPlatform_FloatingConeDL_polygonTypes[];
+extern CollisionPoly gPlatform_FloatingConeDL_polygons[];
+extern Vec3s gPlatform_FloatingConeDL_vertices[13];
+extern CollisionHeader gPlatform_FloatingConeDL_collisionHeader;

@@ -1,0 +1,12 @@
+extern u64 gHammerPegTopDL_Hammer_Peg_00_ci8[];
+extern u64 gHammerPegTopDL_Hammer_Peg_00_pal_rgba16[];
+extern u64 gHammerPegTopDL_Hammer_Peg_01_ci8[];
+extern u64 gHammerPegTopDL_Hammer_Peg_01_pal_rgba16[];
+extern Vtx gHammerPegTopDL_gHammerPegTopDL_mesh_layer_Opaque_vtx_cull[8];
+extern Vtx gHammerPegTopDL_gHammerPegTopDL_mesh_layer_Opaque_vtx_0[24];
+extern Gfx gHammerPegTopDL_gHammerPegTopDL_mesh_layer_Opaque_tri_0[];
+extern Vtx gHammerPegTopDL_gHammerPegTopDL_mesh_layer_Opaque_vtx_1[6];
+extern Gfx gHammerPegTopDL_gHammerPegTopDL_mesh_layer_Opaque_tri_1[];
+extern Gfx mat_gHammerPegTopDL_Side_layerOpaque[];
+extern Gfx mat_gHammerPegTopDL_Top_layerOpaque[];
+extern Gfx gHammerPegTopDL[];

@@ -1,0 +1,4 @@
+extern SurfaceType gLadderMetalSmallCol_polygonTypes[];
+extern CollisionPoly gLadderMetalSmallCol_polygons[];
+extern Vec3s gLadderMetalSmallCol_vertices[12];
+extern CollisionHeader gLadderMetalSmallCol_collisionHeader;

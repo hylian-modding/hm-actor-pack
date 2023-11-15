@@ -1,0 +1,5 @@
+extern u64 gJumpToggleBorderDL_Jump_Platform_03_ia8[];
+extern Vtx gJumpToggleBorderDL_gJumpToggleBorderDL_mesh_layer_Transparent_vtx_0[34];
+extern Gfx gJumpToggleBorderDL_gJumpToggleBorderDL_mesh_layer_Transparent_tri_0[];
+extern Gfx mat_gJumpToggleBorderDL_f3dlite_material_003_layerTransparent[];
+extern Gfx gJumpToggleBorderDL[];

@@ -1,0 +1,11 @@
+extern u64 gJumpTogglePlatformDL_Jump_Platform_01_ci4[];
+extern u64 gJumpTogglePlatformDL_Jump_Platform_01_pal_rgba16[];
+extern u64 gJumpTogglePlatformDL_Jump_Platform_02_ci4[];
+extern u64 gJumpTogglePlatformDL_Jump_Platform_02_pal_rgba16[];
+extern Vtx gJumpTogglePlatformDL_gJumpTogglePlatformDL_mesh_layer_Opaque_vtx_0[20];
+extern Gfx gJumpTogglePlatformDL_gJumpTogglePlatformDL_mesh_layer_Opaque_tri_0[];
+extern Vtx gJumpTogglePlatformDL_gJumpTogglePlatformDL_mesh_layer_Opaque_vtx_1[20];
+extern Gfx gJumpTogglePlatformDL_gJumpTogglePlatformDL_mesh_layer_Opaque_tri_1[];
+extern Gfx mat_gJumpTogglePlatformDL_f3dlite_material_005_layerOpaque[];
+extern Gfx mat_gJumpTogglePlatformDL_f3dlite_material_006_layerOpaque[];
+extern Gfx gJumpTogglePlatformDL[];

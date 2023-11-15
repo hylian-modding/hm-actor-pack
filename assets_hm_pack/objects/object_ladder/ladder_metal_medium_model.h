@@ -1,0 +1,10 @@
+extern u64 gLadderMetalMediumDL_Ladder_01_ci8[];
+extern u64 gLadderMetalMediumDL_Ladder_01_pal_rgba16[];
+extern Vtx gLadderMetalMediumDL_gLadderMetalMediumDL_mesh_layer_Opaque_vtx_cull[8];
+extern Vtx gLadderMetalMediumDL_gLadderMetalMediumDL_mesh_layer_Opaque_vtx_0[10];
+extern Gfx gLadderMetalMediumDL_gLadderMetalMediumDL_mesh_layer_Opaque_tri_0[];
+extern Vtx gLadderMetalMediumDL_gLadderMetalMediumDL_mesh_layer_Opaque_vtx_1[4];
+extern Gfx gLadderMetalMediumDL_gLadderMetalMediumDL_mesh_layer_Opaque_tri_1[];
+extern Gfx mat_gLadderMetalMediumDL_LadderMetal[];
+extern Gfx mat_gLadderMetalMediumDL_LadderMetalShadow[];
+extern Gfx gLadderMetalMediumDL[];

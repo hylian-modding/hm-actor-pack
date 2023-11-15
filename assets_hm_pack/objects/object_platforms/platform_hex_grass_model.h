@@ -1,0 +1,11 @@
+extern u64 gPlatform_HexGrassDL_gPlatform_GrassDL_mesh_gPlatform_GrassDL_ZELDA_MAJORA_S_MAS_ci8[];
+extern u64 gPlatform_HexGrassDL_gPlatform_GrassDL_mesh_gPlatform_GrassDL_ZELDA_MAJORA_S_MAS_pal_rgba16[];
+extern u64 gPlatform_HexGrassDL_gPlatform_GrassDL_mesh_gPlatform_HexGrassDL_ZELDA_MAJORA_S_MASK_rgba16[];
+extern u64 gPlatform_HexGrassDL_gPlatform_GrassDL_mesh__0001AB98_32x32_rgba16_rgba16_rgba16[];
+extern Vtx gPlatform_HexGrassDL_gPlatform_HexGrassDL_mesh_layer_Opaque_vtx_0[31];
+extern Gfx gPlatform_HexGrassDL_gPlatform_HexGrassDL_mesh_layer_Opaque_tri_0[];
+extern Vtx gPlatform_HexGrassDL_gPlatform_HexGrassDL_mesh_layer_Opaque_vtx_1[6];
+extern Gfx gPlatform_HexGrassDL_gPlatform_HexGrassDL_mesh_layer_Opaque_tri_1[];
+extern Gfx mat_gPlatform_HexGrassDL_GrassSide[];
+extern Gfx mat_gPlatform_HexGrassDL_Grass[];
+extern Gfx gPlatform_HexGrassDL[];

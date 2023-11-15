@@ -1,0 +1,6 @@
+extern u64 gPlatform_WoodDL_gPlatform_WoodDL_ZELDA_MAJORA_S_MASK_F1F1C033_2_1_ci_ci8_ci8[];
+extern u64 gPlatform_WoodDL_gPlatform_WoodDL_ZELDA_MAJORA_S_MASK_F1F1C033_2_1_ci_ci8_pal_rgba16[];
+extern Vtx gPlatform_WoodDL_gPlatform_WoodDL_mesh_layer_Opaque_vtx_0[24];
+extern Gfx gPlatform_WoodDL_gPlatform_WoodDL_mesh_layer_Opaque_tri_0[];
+extern Gfx mat_gPlatform_WoodDL_f3dlite_material_007[];
+extern Gfx gPlatform_WoodDL[];

@@ -1,0 +1,79 @@
+diff --git a/include/tables/entrance_table.h b/include/tables/entrance_table.h
+index 7af44f154..3e91fc0b0 100644
+--- a/include/tables/entrance_table.h
++++ b/include/tables/entrance_table.h
+@@ -1932,3 +1932,9 @@
+ /* 0x611 */ DEFINE_ENTRANCE(ENTR_DESERT_COLOSSUS_8_1, SCENE_DESERT_COLOSSUS, 8, false, true, TRANS_TYPE_FADE_WHITE, TRANS_TYPE_FADE_WHITE)
+ /* 0x612 */ DEFINE_ENTRANCE(ENTR_DESERT_COLOSSUS_8_2, SCENE_DESERT_COLOSSUS, 8, false, true, TRANS_TYPE_FADE_WHITE, TRANS_TYPE_FADE_WHITE)
+ /* 0x613 */ DEFINE_ENTRANCE(ENTR_DESERT_COLOSSUS_8_3, SCENE_DESERT_COLOSSUS, 8, false, true, TRANS_TYPE_FADE_WHITE, TRANS_TYPE_FADE_WHITE)
++
++// Hylian Modding pack test map
++DEFINE_ENTRANCE(ENTR_TEST_MAP_0, SCENE_TEST_MAP, 0, false, true, TRANS_TYPE_FADE_BLACK, TRANS_TYPE_FADE_BLACK)
++DEFINE_ENTRANCE(ENTR_TEST_MAP_0_1, SCENE_TEST_MAP, 0, false, true, TRANS_TYPE_FADE_BLACK, TRANS_TYPE_FADE_BLACK)
++DEFINE_ENTRANCE(ENTR_TEST_MAP_0_2, SCENE_TEST_MAP, 0, false, true, TRANS_TYPE_FADE_BLACK, TRANS_TYPE_FADE_BLACK)
++DEFINE_ENTRANCE(ENTR_TEST_MAP_0_3, SCENE_TEST_MAP, 0, false, true, TRANS_TYPE_FADE_BLACK, TRANS_TYPE_FADE_BLACK)
+diff --git a/include/tables/scene_table.h b/include/tables/scene_table.h
+index 0337e1252..008803fa4 100644
+--- a/include/tables/scene_table.h
++++ b/include/tables/scene_table.h
+@@ -120,3 +120,6 @@
+ /* 0x6B */ DEFINE_SCENE(hairal_niwa2_scene, g_pn_12, SCENE_HAIRAL_NIWA2, SDC_CASTLE_COURTYARD_GUARDS, 0, 0)
+ /* 0x6C */ DEFINE_SCENE(sasatest_scene, none, SCENE_SASATEST, SDC_DEFAULT, 0, 0)
+ /* 0x6D */ DEFINE_SCENE(testroom_scene, none, SCENE_TESTROOM, SDC_DEFAULT, 0, 0)
++
++// Hylian Modding pack test map
++/* 0x6D */ DEFINE_SCENE(test_map_scene, none, SCENE_TEST_MAP, SDC_DEFAULT, 0, 0)
+diff --git a/spec b/spec
+index 149d491d6..102ae32a9 100644
+--- a/spec
++++ b/spec
+@@ -10398,6 +10398,36 @@ beginseg
+     number 3
+ endseg
+ 
++/* Hylian Modding pack test map */
++
++beginseg
++    name "test_map_scene"
++    romalign 0x1000
++    include "build/assets_hm_pack/scenes/test_map/test_map_scene.o"
++    number 2
++endseg
++
++beginseg
++    name "test_map_room_0"
++    romalign 0x1000
++    include "build/assets_hm_pack/scenes/test_map/test_map_room_0.o"
++    number 3
++endseg
++
++beginseg
++    name "test_map_room_1"
++    romalign 0x1000
++    include "build/assets_hm_pack/scenes/test_map/test_map_room_1.o"
++    number 3
++endseg
++
++beginseg
++    name "test_map_room_2"
++    romalign 0x1000
++    include "build/assets_hm_pack/scenes/test_map/test_map_room_2.o"
++    number 3
++endseg
++
+ beginseg
+     name "bump_texture_static"
+     romalign 0x1000
+diff --git a/src/overlays/gamestates/ovl_select/z_select.c b/src/overlays/gamestates/ovl_select/z_select.c
+index 5ac03ab90..7303d14bc 100644
+--- a/src/overlays/gamestates/ovl_select/z_select.c
++++ b/src/overlays/gamestates/ovl_select/z_select.c
+@@ -283,6 +283,8 @@ static SceneSelectEntry sScenes[] = {
+     { "124:depth" GFXP_KATAKANA "ﾃｽﾄ", MapSelect_LoadGame, ENTR_DEPTH_TEST_0 },
+     // "125: Hyrule Garden Game 2" (Early Hyrule Garden Game)
+     { "125:" GFXP_KATAKANA "ﾊｲﾗﾙ" GFXP_HIRAGANA "ﾆﾜ" GFXP_KATAKANA "ｹﾞｰﾑ2", MapSelect_LoadGame, ENTR_HAIRAL_NIWA2_0 },
++    // Hylian Modding pack test map
++    { "HM Pack Test Map", MapSelect_LoadGame, ENTR_TEST_MAP_0 },
+     // "title" (Title Screen)
+     { "title", (void*)MapSelect_LoadTitle, 0 },
+ };
