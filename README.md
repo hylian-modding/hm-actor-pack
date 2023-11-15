@@ -34,8 +34,8 @@ You can find notes for each of these actor inside their C source files located a
 
 **Created by**:
 * CDi-Fails
-* KentonM
-* Hiisuya
+* kentonm
+* hiisuya
 * ZeeRoX
 * Aegiker
 
