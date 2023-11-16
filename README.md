@@ -66,7 +66,7 @@ If you're uncomfortable overwriting the Makefile, or if the decomp repo has made
 
 Now, run the following commands:
 ```
-make distclean && make setup && make
+make clean && make setup && make
 ```
 You should now have a ROM built successfully!
 
@@ -134,7 +134,7 @@ Finally, add a map select entry at the end of the ``sScenes`` array in ``src/ove
 
 Run the following commands:
 ```
-make distclean && make setup && make
+make clean && make setup && make
 ```
 
 Now boot into the game, go to map select, and select the `HM Pack Test Map` entry. You should be in the test map and see all of the new actors!
