@@ -49,7 +49,10 @@ For more information, visit us at the links below:
 There are two recommended ways you can get started with this actor pack.
 
 ### Method #1 - Copy & Paste
-This method is best suited for those wishing to incorporate the actor pack into an existing modded repo. If you don't already have a repo set up and building, follow the [OoT decomp installation guide.](https://github.com/zeldaret/oot#installation).
+This method is best suited for those wishing to incorporate the actor pack into an existing modded repo. If you don't already have a repo set up and building, follow the [OoT decomp installation guide.](https://github.com/zeldaret/oot#installation). Make sure you have the MIPS GCC compiler. If you don't, install it by running this command:
+```
+sudo apt-get install gcc-mips-linux-gnu
+```
 
 First, copy all of the following into your repo:
 
@@ -71,7 +74,10 @@ make clean && make setup && make
 You should now have a ROM built successfully!
 
 ### Method #2 - Cloning This Repo
-If you want to start your modding project from scratch using this actor pack as a base, this method is for you. Simply ``git clone`` this repo, then follow the OoT decomp installation guide as normal.
+If you want to start your modding project from scratch using this actor pack as a base, this method is for you. Simply ``git clone`` this repo, then follow the OoT decomp installation guide as normal. Make sure you have the MIPS GCC compiler as well. If you don't, run:
+```
+sudo apt-get install gcc-mips-linux-gnu
+```
 
 **NOTE:** There's always a chance that this repo is out of sync with the main decomp repo. To ensure you're not missing anything, we recommend you add the main decomp repo as a remote, then fetch and merge the latest commits. It's good practice to do this often. Here's how to start:
 ```
