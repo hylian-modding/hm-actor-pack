@@ -63,6 +63,8 @@ spec.hm_pack_objects.inc
 assets_hm_pack/
 src/overlays/actors/hm_pack/
 include/tables/hm_pack/
+include/tables/actor_table.h
+include/tables/object_table.h
 ```
 
 If you're uncomfortable overwriting the Makefile, or if the decomp repo has made changes to it we haven't merged into this repo yet, just make sure you copy over the relevant changes to yours.
