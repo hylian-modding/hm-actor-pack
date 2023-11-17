@@ -36,7 +36,7 @@ You can find notes for each of these actor inside their C source files located a
 * CDi-Fails
 * kentonm
 * hiisuya
-* ZeeRoX
+* ZeeRoX & Syeo
 * Aegiker
 
 For more information, visit us at the links below:
