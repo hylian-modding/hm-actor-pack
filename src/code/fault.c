@@ -374,9 +374,7 @@ void Fault_PadCallback(Input* inputs) {
     PadMgr_RequestPadData(inputs, false);
 #else
     // Guarantee crashing behavior: false -> NULL, previous value in a2 is more often non-zero than zero
-    // TODO: ...delete before release!!!?
-    // PadMgr_RequestPadData((PadMgr*)inputs, NULL, true);;
-    PadMgr_RequestPadData(&gPadMgr, inputs, false);
+    PadMgr_RequestPadData((PadMgr*)inputs, NULL, true);
 #endif
 }
 
@@ -1224,8 +1222,7 @@ void Fault_ThreadEntry(void* arg) {
         } else {
             // Draw error bar signifying the crash screen is available
             Fault_DrawCornerRec(GPACK_RGBA5551(255, 0, 0, 1));
-            // TODO: change back before release!!!
-            // Fault_WaitForButtonCombo();
+            Fault_WaitForButtonCombo();
         }
 
         // Set auto-scrolling and default colors

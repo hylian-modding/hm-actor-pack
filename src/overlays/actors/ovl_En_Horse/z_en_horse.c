@@ -722,7 +722,8 @@ s32 EnHorse_PlayerCanMove(EnHorse* this, PlayState* play) {
 
     if ((player->stateFlags1 & PLAYER_STATE1_0) || func_8002DD78(GET_PLAYER(play)) == 1 ||
         (player->stateFlags1 & PLAYER_STATE1_20) || ((this->stateFlags & ENHORSE_FLAG_19) && !this->inRace) ||
-        this->action == ENHORSE_ACT_HBA || player->actor.flags & ACTOR_FLAG_8 || play->csCtx.state != CS_STATE_IDLE) {
+        this->action == ENHORSE_ACT_HBA || player->actor.flags & ACTOR_FLAG_TALK ||
+        play->csCtx.state != CS_STATE_IDLE) {
         return false;
     }
     return true;
@@ -1537,7 +1538,7 @@ void EnHorse_Reverse(EnHorse* this, PlayState* play) {
         } else if (stickMag < 10.0f) {
             stickAngle = -0x7FFF;
         }
-    } else if (player->actor.flags & ACTOR_FLAG_8) {
+    } else if (player->actor.flags & ACTOR_FLAG_TALK) {
         EnHorse_StartMountedIdleResetAnim(this);
         this->actor.speed = 0.0f;
         return;
@@ -1747,7 +1748,7 @@ void EnHorse_Inactive(EnHorse* this, PlayState* play2) {
 
             // Focus the camera on Epona
             Camera_SetViewParam(play->cameraPtrs[CAM_ID_MAIN], CAM_VIEW_TARGET, &this->actor);
-            Camera_ChangeSetting(play->cameraPtrs[CAM_ID_MAIN], CAM_SET_TURN_AROUND);
+            Camera_RequestSetting(play->cameraPtrs[CAM_ID_MAIN], CAM_SET_TURN_AROUND);
             Camera_SetCameraData(play->cameraPtrs[CAM_ID_MAIN], 4, NULL, NULL, 0x51, 0, 0);
         }
     }
@@ -1821,7 +1822,7 @@ void EnHorse_Idle(EnHorse* this, PlayState* play) {
                 this->followTimer = 0;
                 EnHorse_SetFollowAnimation(this, play);
                 Camera_SetViewParam(play->cameraPtrs[CAM_ID_MAIN], CAM_VIEW_TARGET, &this->actor);
-                Camera_ChangeSetting(play->cameraPtrs[CAM_ID_MAIN], CAM_SET_TURN_AROUND);
+                Camera_RequestSetting(play->cameraPtrs[CAM_ID_MAIN], CAM_SET_TURN_AROUND);
                 Camera_SetCameraData(play->cameraPtrs[CAM_ID_MAIN], 4, NULL, NULL, 0x51, 0, 0);
             }
         } else {
