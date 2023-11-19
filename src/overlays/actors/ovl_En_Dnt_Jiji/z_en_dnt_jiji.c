@@ -233,10 +233,10 @@ void EnDntJiji_Cower(EnDntJiji* this, PlayState* play) {
     SkelAnime_Update(&this->skelAnime);
     Math_SmoothStepToS(&this->actor.shape.rot.y, this->actor.yawTowardsPlayer, 3, 0x1388, 0);
     if (frame >= this->endFrame) {
-        if (Actor_ProcessTalkRequest(&this->actor, play)) {
+        if (Actor_TalkOfferAccepted(&this->actor, play)) {
             this->actionFunc = EnDntJiji_SetupTalk;
         } else {
-            func_8002F2CC(&this->actor, play, 100.0f);
+            Actor_OfferTalk(&this->actor, play, 100.0f);
         }
     }
 }
@@ -251,7 +251,7 @@ void EnDntJiji_Talk(EnDntJiji* this, PlayState* play) {
     SkelAnime_Update(&this->skelAnime);
     Math_SmoothStepToS(&this->actor.shape.rot.y, this->actor.yawTowardsPlayer, 3, 0x1388, 0);
     if ((Message_GetState(&play->msgCtx) == TEXT_STATE_EVENT) && Message_ShouldAdvance(play)) {
-        func_8005B1A4(GET_ACTIVE_CAM(play));
+        Camera_SetFinishedFlag(GET_ACTIVE_CAM(play));
         Message_CloseTextbox(play);
         Player_SetCsActionWithHaltedActors(play, NULL, PLAYER_CSACTION_7);
         this->actor.parent = NULL;

@@ -812,7 +812,7 @@ s16 EnGo2_UpdateTalkState(PlayState* play, Actor* thisx) {
             return EnGo2_UpdateTalkStateGoronMarketBazaar(play, this);
     }
 #ifdef AVOID_UB
-    // The v0 register isn't set in this function, the last value in v0 is the return value of Actor_ProcessTalkRequest
+    // The v0 register isn't set in this function, the last value in v0 is the return value of Actor_TalkOfferAccepted
     // called in the function below, which must be false for this function to be called
     return false;
 #endif
@@ -826,13 +826,13 @@ s32 func_80A44790(EnGo2* this, PlayState* play) {
                !(this->collider.base.ocFlags2 & OC2_HIT_PLAYER)) {
         return false;
     } else {
-        if (Actor_ProcessTalkRequest(&this->actor, play)) {
+        if (Actor_TalkOfferAccepted(&this->actor, play)) {
             this->interactInfo.talkState = NPC_TALK_STATE_TALKING;
             return true;
         } else if (this->interactInfo.talkState != NPC_TALK_STATE_IDLE) {
             this->interactInfo.talkState = EnGo2_UpdateTalkState(play, &this->actor);
             return false;
-        } else if (func_8002F2CC(&this->actor, play, this->interactRange)) {
+        } else if (Actor_OfferTalk(&this->actor, play, this->interactRange)) {
             this->actor.textId = EnGo2_GetTextId(play, &this->actor);
         }
         return false;
@@ -1163,11 +1163,11 @@ s32 EnGo2_IsCameraModified(EnGo2* this, PlayState* play) {
 
     if ((this->actor.params & 0x1F) == GORON_DMT_BIGGORON) {
         if (EnGo2_IsWakingUp(this)) {
-            Camera_ChangeSetting(mainCam, CAM_SET_DIRECTED_YAW);
-            Camera_UnsetStateFlag(mainCam, CAM_STATE_2);
+            Camera_RequestSetting(mainCam, CAM_SET_DIRECTED_YAW);
+            Camera_UnsetStateFlag(mainCam, CAM_STATE_CHECK_BG);
         } else if (!EnGo2_IsWakingUp(this) && (mainCam->setting == CAM_SET_DIRECTED_YAW)) {
-            Camera_ChangeSetting(mainCam, CAM_SET_DUNGEON1);
-            Camera_SetStateFlag(mainCam, CAM_STATE_2);
+            Camera_RequestSetting(mainCam, CAM_SET_DUNGEON1);
+            Camera_SetStateFlag(mainCam, CAM_STATE_CHECK_BG);
         }
     }
 
@@ -1839,7 +1839,7 @@ void EnGo2_BiggoronEyedrops(EnGo2* this, PlayState* play) {
         case 1:
             if (DECR(this->animTimer)) {
                 if (this->animTimer == 60 || this->animTimer == 120) {
-                    func_8005B1A4(GET_ACTIVE_CAM(play));
+                    Camera_SetFinishedFlag(GET_ACTIVE_CAM(play));
                     func_800F4524(&gSfxDefaultPos, NA_SE_EV_GORON_WATER_DROP, 60);
                 }
             } else {
