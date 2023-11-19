@@ -58,6 +58,7 @@ First, copy all of the following into your repo:
 
 ```
 Makefile
+spec
 spec.hm_pack_actors.inc
 spec.hm_pack_objects.inc
 assets_hm_pack/
@@ -67,7 +68,7 @@ include/tables/actor_table.h
 include/tables/object_table.h
 ```
 
-If you're uncomfortable overwriting the Makefile, or if the decomp repo has made changes to it we haven't merged into this repo yet, just make sure you copy over the relevant changes to yours.
+If you're uncomfortable overwriting the Makefile and/or spec, or if the decomp repo has made changes we haven't merged into this repo yet, just make sure you copy over the relevant changes to your files.
 
 Now, run the following commands:
 ```
