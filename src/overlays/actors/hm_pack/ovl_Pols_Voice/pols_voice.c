@@ -454,8 +454,8 @@ void PolsVoice_Update(Actor* thisx, PlayState* play) {
     if (play->msgCtx.ocarinaAction > OCARINA_ACTION_FREE_PLAY && this->actionFunc != PolsVoice_Die) {
         Actor_PlaySfx(&this->actor, NA_SE_EN_DEADHAND_DEAD);
         Enemy_StartFinishingBlow(play, &this->actor);
-        this->actionFunc = PolsVoice_SetupDie;
         play->msgCtx.ocarinaAction = OCARINA_ACTION_FREE_PLAY;
+        this->actionFunc = PolsVoice_SetupDie;
     }
 }
 
