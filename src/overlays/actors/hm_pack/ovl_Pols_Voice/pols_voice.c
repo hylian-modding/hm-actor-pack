@@ -121,6 +121,7 @@ void PolsVoice_Init(Actor* thisx, PlayState* play) {
     this->actor.colChkInfo.damageTable = &sDamageTable;
 
     this->actionFunc = PolsVoice_Idle;
+    play->msgCtx.ocarinaAction = OCARINA_ACTION_FREE_PLAY; // Ensures they won't randomly die if you ever play a song in the same scene
 }
 
 void PolsVoice_Destroy(Actor* thisx, PlayState* play) {
