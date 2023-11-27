@@ -450,11 +450,16 @@ void PolsVoice_Update(Actor* thisx, PlayState* play) {
         CollisionCheck_SetAC(play, &play->colChkCtx, &this->collider.base);
     }
     // Check for any Ocarina song to kill them
-    if (play->msgCtx.ocarinaAction > OCARINA_ACTION_FREE_PLAY && this->actionFunc != PolsVoice_Die) {
-        Actor_PlaySfx(&this->actor, NA_SE_EN_DEADHAND_DEAD);
-        Enemy_StartFinishingBlow(play, &this->actor);
-        play->msgCtx.ocarinaAction = OCARINA_ACTION_FREE_PLAY;
-        this->actionFunc = PolsVoice_SetupDie;
+    if (play->msgCtx.ocarinaAction == OCARINA_ACTION_FREE_PLAY_DONE) {
+        if (this->actor.xzDistToPlayer <= POLSVOICE_NOTICE_RADIUS) {
+            if (this->actionFunc != PolsVoice_Die) {
+                Actor_PlaySfx(&this->actor, NA_SE_EN_DEADHAND_DEAD);
+                Enemy_StartFinishingBlow(play, &this->actor);
+                this->actionFunc = PolsVoice_SetupDie;
+            }
+        } else {
+            play->msgCtx.ocarinaAction = 0xFFFF;
+        }
     }
 }
 
