@@ -24,8 +24,6 @@ void PolsVoice_Damaged(PolsVoice* this, PlayState* play);
 void PolsVoice_Stunned(PolsVoice* this, PlayState* play);
 void PolsVoice_Die(PolsVoice* this, PlayState* play);
 
-void Player_Action_8084E3C4(Player* this, PlayState* play);
-
 typedef enum {
     POLSVOICE_DMGEFF_NONE,
     POLSVOICE_DMGEFF_STUN,
