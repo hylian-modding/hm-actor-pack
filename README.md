@@ -4,35 +4,47 @@ This is a custom actor pack intended for use with the [Ocarina of Time decompila
 
 In this pack, you'll find the following custom actors:
 * **Scalable, rotatable fans**
-  * Push Link and bombs around 
+  * Push Link and bombs around
+  * By Aegiker and CDi-Fails
 * **Floor spikes with various modes** 
   * Cyclic, pressure-sensitive, switch flag dependent, etc.
+  * Code by hiisuya, assets by CDi-Fails
 * **Hammer pegs**
   * Useful for blocking players before they have the hammer
+  * By CDi-Fails
 * **Red/blue platforms**
   * Toggle between two rotations when Link leaves the ground
+  * Code by kentonm, assets by kentonm and CDi-Fails
 * **Configurable ladders**
   * Wooden (hookshotable) or metal (non-hookshotable)
   * Can either fade in on switch flag, or drop to the ground when hit with bow/slingshot
+  * By CDi-Fails
 * **Metal crates**
   * Can only be broken with the hammer 
+  * By kentomm
 * **Configurable platforms**
   * Various themes/textures
   * Can either fade in on switch flag, or hover in the air
+  * By hiisuya
 * **Wall pull switch**
   * Can retract on a timer and unset switch flag when fully retracted 
+  * Code by kentonm, assets by CDi-Fails
 * **Rat enemy**
+  * By CDi-Fails
 * **Pols Voice enemy**
-  * Weak to only arrows 
+  * Weak to arrows and Ocarina songs
+  * Code by CDi-Fails, LuigiXHero, and hiisuya; assets by CDi-Fails
 * **Wizzrobe enemy**
   * Attacks with fire and ice spells
   * Can spawn other enemies 
+  * Code by ZeeRoX, assets by Syeo
 * **Zol enemy**
-  * Slime monster that can split in two 
+  * Slime monster that can split in two
+  * By ZeeRoX
 
 You can find notes for each of these actor inside their C source files located at ``src/overlays/actors/hm_pack/``.
 
-**Created by**:
+**Originally created by**:
 * CDi-Fails
 * kentonm
 * hiisuya
