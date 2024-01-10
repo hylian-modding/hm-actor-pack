@@ -32,36 +32,36 @@ typedef enum {
 
 static DamageTable sDamageTable = {
     /* Deku nut      */ DMG_ENTRY(0, POLSVOICE_DMGEFF_STUN),
-    /* Deku stick    */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
-    /* Slingshot     */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
-    /* Explosive     */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
+    /* Deku stick    */ DMG_ENTRY(3, POLSVOICE_DMGEFF_DEFAULT),
+    /* Slingshot     */ DMG_ENTRY(2, POLSVOICE_DMGEFF_DEFAULT),
+    /* Explosive     */ DMG_ENTRY(4, POLSVOICE_DMGEFF_DEFAULT),
     /* Boomerang     */ DMG_ENTRY(0, POLSVOICE_DMGEFF_STUN),
-    /* Normal arrow  */ DMG_ENTRY(2, POLSVOICE_DMGEFF_DEFAULT),
-    /* Hammer swing  */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
+    /* Normal arrow  */ DMG_ENTRY(5, POLSVOICE_DMGEFF_DEFAULT),
+    /* Hammer swing  */ DMG_ENTRY(3, POLSVOICE_DMGEFF_DEFAULT),
     /* Hookshot      */ DMG_ENTRY(0, POLSVOICE_DMGEFF_STUN),
-    /* Kokiri sword  */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
-    /* Master sword  */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
-    /* Giant's Knife */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
-    /* Fire arrow    */ DMG_ENTRY(3, POLSVOICE_DMGEFF_DEFAULT),
-    /* Ice arrow     */ DMG_ENTRY(3, POLSVOICE_DMGEFF_DEFAULT),
-    /* Light arrow   */ DMG_ENTRY(6, POLSVOICE_DMGEFF_DEFAULT),
-    /* Unk arrow 1   */ DMG_ENTRY(3, POLSVOICE_DMGEFF_DEFAULT),
-    /* Unk arrow 2   */ DMG_ENTRY(3, POLSVOICE_DMGEFF_DEFAULT),
-    /* Unk arrow 3   */ DMG_ENTRY(3, POLSVOICE_DMGEFF_DEFAULT),
+    /* Kokiri sword  */ DMG_ENTRY(2, POLSVOICE_DMGEFF_DEFAULT),
+    /* Master sword  */ DMG_ENTRY(3, POLSVOICE_DMGEFF_DEFAULT),
+    /* Giant's Knife */ DMG_ENTRY(4, POLSVOICE_DMGEFF_DEFAULT),
+    /* Fire arrow    */ DMG_ENTRY(5, POLSVOICE_DMGEFF_DEFAULT),
+    /* Ice arrow     */ DMG_ENTRY(5, POLSVOICE_DMGEFF_DEFAULT),
+    /* Light arrow   */ DMG_ENTRY(10, POLSVOICE_DMGEFF_DEFAULT),
+    /* Unk arrow 1   */ DMG_ENTRY(5, POLSVOICE_DMGEFF_DEFAULT),
+    /* Unk arrow 2   */ DMG_ENTRY(5, POLSVOICE_DMGEFF_DEFAULT),
+    /* Unk arrow 3   */ DMG_ENTRY(5, POLSVOICE_DMGEFF_DEFAULT),
     /* Fire magic    */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
     /* Ice magic     */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
     /* Light magic   */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
     /* Shield        */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
     /* Mirror Ray    */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
-    /* Kokiri spin   */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
-    /* Giant spin    */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
-    /* Master spin   */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
-    /* Kokiri jump   */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
-    /* Giant jump    */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
-    /* Master jump   */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
+    /* Kokiri spin   */ DMG_ENTRY(2, POLSVOICE_DMGEFF_DEFAULT),
+    /* Giant spin    */ DMG_ENTRY(4, POLSVOICE_DMGEFF_DEFAULT),
+    /* Master spin   */ DMG_ENTRY(3, POLSVOICE_DMGEFF_DEFAULT),
+    /* Kokiri jump   */ DMG_ENTRY(3, POLSVOICE_DMGEFF_DEFAULT),
+    /* Giant jump    */ DMG_ENTRY(5, POLSVOICE_DMGEFF_DEFAULT),
+    /* Master jump   */ DMG_ENTRY(4, POLSVOICE_DMGEFF_DEFAULT),
     /* Unknown 1     */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
     /* Unblockable   */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
-    /* Hammer jump   */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
+    /* Hammer jump   */ DMG_ENTRY(4, POLSVOICE_DMGEFF_DEFAULT),
     /* Unknown 2     */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
 };
 
@@ -103,7 +103,7 @@ void PolsVoice_Init(Actor* thisx, PlayState* play) {
     Actor_SetScale(&this->actor, 0.015f);
 
     this->actor.colChkInfo.mass = MASS_HEAVY;
-    this->actor.colChkInfo.health = 6;
+    this->actor.colChkInfo.health = 10;
     this->actor.gravity = -1.0f;
 
     ActorShape_Init(&this->actor.shape, 0.0f, ActorShadow_DrawCircle, 45.0f);
@@ -369,6 +369,9 @@ void PolsVoice_Die(PolsVoice* this, PlayState* play) {
                                  true);
             Item_DropCollectible(play, &this->actor.world.pos, ITEM00_RECOVERY_HEART);
             Actor_Kill(&this->actor);
+            if (play->msgCtx.ocarinaAction == OCARINA_ACTION_FREE_PLAY_DONE) {
+                play->msgCtx.ocarinaAction = 0xFFFF;
+            }
         }
     }
 }
@@ -447,6 +450,18 @@ void PolsVoice_Update(Actor* thisx, PlayState* play) {
 
     if (!this->invincibilityTimer && this->actionFunc != PolsVoice_Damaged && this->actionFunc != PolsVoice_Die) {
         CollisionCheck_SetAC(play, &play->colChkCtx, &this->collider.base);
+    }
+    // Check for any Ocarina song to kill them
+    if (play->msgCtx.ocarinaAction == OCARINA_ACTION_FREE_PLAY_DONE) {
+        if (this->actor.xzDistToPlayer <= POLSVOICE_NOTICE_RADIUS) {
+            if (this->actionFunc != PolsVoice_Die) {
+                Actor_PlaySfx(&this->actor, NA_SE_EN_DEADHAND_DEAD);
+                Enemy_StartFinishingBlow(play, &this->actor);
+                this->actionFunc = PolsVoice_SetupDie;
+            }
+        } else {
+            play->msgCtx.ocarinaAction = 0xFFFF;
+        }
     }
 }
 
