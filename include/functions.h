@@ -775,7 +775,7 @@ void SfxSource_UpdateAll(PlayState* play);
 void SfxSource_PlaySfxAtFixedWorldPos(PlayState* play, Vec3f* worldPos, s32 duration, u16 sfxId);
 u16 QuestHint_GetSariaTextId(PlayState* play);
 u16 QuestHint_GetNaviTextId(PlayState* play);
-u16 Text_GetFaceReaction(PlayState* play, u32 reactionSet);
+u16 MaskReaction_GetTextId(PlayState* play, u32 maskReactionSet);
 void CutsceneFlags_UnsetAll(PlayState* play);
 void CutsceneFlags_Set(PlayState* play, s16 flag);
 void CutsceneFlags_Unset(PlayState* play, s16 flag);
@@ -1295,13 +1295,6 @@ void func_800C213C(PreRender* this, Gfx** gfxP);
 void PreRender_RestoreFramebuffer(PreRender* this, Gfx** gfxP);
 void PreRender_CopyImageRegion(PreRender* this, Gfx** gfxP);
 void PreRender_ApplyFilters(PreRender* this);
-void AudioMgr_StopAllSfx(void);
-void func_800C3C80(AudioMgr* audioMgr);
-void AudioMgr_HandleRetrace(AudioMgr* audioMgr);
-void AudioMgr_HandlePreNMI(AudioMgr* audioMgr);
-void AudioMgr_ThreadEntry(void* arg0);
-void AudioMgr_Unlock(AudioMgr* audioMgr);
-void AudioMgr_Init(AudioMgr* audioMgr, void* stack, OSPri pri, OSId id, Scheduler* sched, IrqMgr* irqMgr);
 void GameState_FaultPrint(void);
 void GameState_SetFBFilter(Gfx** gfxP);
 void GameState_DrawInputDisplay(u16 input, Gfx** gfxP);
@@ -1437,9 +1430,13 @@ void Matrix_RotateZYX(s16 x, s16 y, s16 z, u8 mode);
 void Matrix_TranslateRotateZYX(Vec3f* translation, Vec3s* rotation);
 void Matrix_SetTranslateRotateYXZ(f32 translateX, f32 translateY, f32 translateZ, Vec3s* rot);
 Mtx* Matrix_MtxFToMtx(MtxF* src, Mtx* dest);
+#ifdef OOT_DEBUG
 Mtx* Matrix_ToMtx(Mtx* dest, char* file, s32 line);
 Mtx* Matrix_NewMtx(GraphicsContext* gfxCtx, char* file, s32 line);
-Mtx* Matrix_MtxFToNewMtx(MtxF* src, GraphicsContext* gfxCtx);
+#else
+Mtx* Matrix_ToMtx(Mtx* dest);
+Mtx* Matrix_NewMtx(GraphicsContext* gfxCtx);
+#endif
 void Matrix_MultVec3f(Vec3f* src, Vec3f* dest);
 void Matrix_MtxFCopy(MtxF* dest, MtxF* src);
 void Matrix_MtxToMtxF(Mtx* src, MtxF* dest);

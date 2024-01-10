@@ -2658,7 +2658,7 @@ s32 func_8083499C(Player* this, PlayState* play) {
 /**
  * The actual sword weapon is not handled here. See `Player_ActionChange_7` for melee weapon usage.
  * This upper body action allows for shielding or changing held items while a sword is in hand.
-*/
+ */
 s32 Player_UpperAction_Sword(Player* this, PlayState* play) {
     if (func_80834758(play, this) || func_8083499C(this, play)) {
         return 1;
@@ -4276,10 +4276,10 @@ void func_8083821C(Player* this) {
     s32 i;
 
     // clang-format off
-    for (i = 0; i < PLAYER_BODYPART_MAX; i++) { this->flameTimers[i] = Rand_S16Offset(0, 200); }
+    for (i = 0; i < PLAYER_BODYPART_MAX; i++) { this->bodyFlameTimers[i] = Rand_S16Offset(0, 200); }
     // clang-format on
 
-    this->isBurning = true;
+    this->bodyIsBurning = true;
 }
 
 void func_80838280(Player* this) {
@@ -4347,7 +4347,7 @@ s32 func_808382DC(Player* this, PlayState* play) {
             func_80838280(this);
 
             if (this->unk_8A1 == 3) {
-                this->shockTimer = 40;
+                this->bodyShockTimer = 40;
             }
 
             this->actor.colChkInfo.damage += this->unk_8A0;
@@ -5428,8 +5428,8 @@ void func_8083AE40(Player* this, s16 objectId) {
         LOG_HEX("size", size, "../z_player.c", 9090);
         ASSERT(size <= 1024 * 8, "size <= 1024 * 8", "../z_player.c", 9091);
 
-        DmaMgr_RequestAsync(&this->giObjectDmaRequest, this->giObjectSegment, gObjectTable[objectId].vromStart, size, 0,
-                            &this->giObjectLoadQueue, NULL, "../z_player.c", 9099);
+        DMA_REQUEST_ASYNC(&this->giObjectDmaRequest, this->giObjectSegment, gObjectTable[objectId].vromStart, size, 0,
+                          &this->giObjectLoadQueue, NULL, "../z_player.c", 9099);
     }
 }
 
@@ -9984,7 +9984,7 @@ void Player_Init(Actor* thisx, PlayState* play2) {
     Player_SetEquipmentData(play, this);
     this->prevBoots = this->currentBoots;
     Player_InitCommon(this, play, gPlayerSkelHeaders[((void)0, gSaveContext.save.linkAge)]);
-    this->giObjectSegment = (void*)(((uintptr_t)ZeldaArena_MallocDebug(0x3008, "../z_player.c", 17175) + 8) & ~0xF);
+    this->giObjectSegment = (void*)(((uintptr_t)ZELDA_ARENA_MALLOC(0x3008, "../z_player.c", 17175) + 8) & ~0xF);
 
     respawnFlag = gSaveContext.respawnFlag;
 
@@ -10708,16 +10708,16 @@ void func_80848A04(PlayState* play, Player* this) {
                   temp * 200.0f, 0, 8);
 }
 
-void func_80848B44(PlayState* play, Player* this) {
+void Player_UpdateBodyShock(PlayState* play, Player* this) {
     Vec3f shockPos;
     Vec3f* randBodyPart;
     s32 shockScale;
 
-    this->shockTimer--;
-    this->unk_892 += this->shockTimer;
+    this->bodyShockTimer--;
+    this->unk_892 += this->bodyShockTimer;
 
     if (this->unk_892 > 20) {
-        shockScale = this->shockTimer * 2;
+        shockScale = this->bodyShockTimer * 2;
         this->unk_892 -= 20;
 
         if (shockScale > 40) {
@@ -10734,7 +10734,7 @@ void func_80848B44(PlayState* play, Player* this) {
     }
 }
 
-void func_80848C74(PlayState* play, Player* this) {
+void Player_UpdateBodyBurn(PlayState* play, Player* this) {
     s32 spawnedFlame;
     u8* timerPtr;
     s32 timerStep;
@@ -10752,7 +10752,7 @@ void func_80848C74(PlayState* play, Player* this) {
     }
 
     spawnedFlame = false;
-    timerPtr = this->flameTimers;
+    timerPtr = this->bodyFlameTimers;
 
     if (this->stateFlags2 & PLAYER_STATE2_3) {
         sp58 = 100;
@@ -10797,7 +10797,7 @@ void func_80848C74(PlayState* play, Player* this) {
             Player_InflictDamage(play, -1);
         }
     } else {
-        this->isBurning = false;
+        this->bodyIsBurning = false;
     }
 }
 
@@ -10957,12 +10957,12 @@ void Player_UpdateCommon(Player* this, PlayState* play, Input* input) {
         this->unk_860++;
     }
 
-    if (this->shockTimer != 0) {
-        func_80848B44(play, this);
+    if (this->bodyShockTimer != 0) {
+        Player_UpdateBodyShock(play, this);
     }
 
-    if (this->isBurning) {
-        func_80848C74(play, this);
+    if (this->bodyIsBurning) {
+        Player_UpdateBodyBurn(play, this);
     }
 
     if ((this->stateFlags3 & PLAYER_STATE3_RESTORE_NAYRUS_LOVE) && (gSaveContext.nayrusLoveTimer != 0) &&
@@ -11146,9 +11146,9 @@ void Player_UpdateCommon(Player* this, PlayState* play, Input* input) {
                     func_80837B9C(this, play);
                 } else if ((this->actor.bgCheckFlags & BGCHECKFLAG_GROUND) || (this->stateFlags1 & PLAYER_STATE1_27)) {
                     func_80836448(play, this,
-                                  func_808332B8(this)       ? &gPlayerAnim_link_swimer_swim_down
-                                  : (this->shockTimer != 0) ? &gPlayerAnim_link_normal_electric_shock_end
-                                                            : &gPlayerAnim_link_derth_rebirth);
+                                  func_808332B8(this)           ? &gPlayerAnim_link_swimer_swim_down
+                                  : (this->bodyShockTimer != 0) ? &gPlayerAnim_link_normal_electric_shock_end
+                                                                : &gPlayerAnim_link_derth_rebirth);
                 }
             } else {
                 if ((this->actor.parent == NULL) && ((play->transitionTrigger == TRANS_TRIGGER_START) ||
@@ -11273,7 +11273,7 @@ void Player_UpdateCommon(Player* this, PlayState* play, Input* input) {
         this->cylinder.dim.yShift = phi_f12 - this->actor.world.pos.y;
 
         if (this->stateFlags1 & PLAYER_STATE1_22) {
-            this->cylinder.dim.height = this->cylinder.dim.height * 0.8f;
+            this->cylinder.dim.height *= 0.8f;
         }
 
         Collider_UpdateCylinder(&this->actor, &this->cylinder);
@@ -11398,7 +11398,7 @@ void Player_DrawGameplay(PlayState* play, Player* this, s32 lod, Gfx* cullDList,
                     Player_PostLimbDrawGameplay, this);
 
     if ((overrideLimbDraw == Player_OverrideLimbDrawGameplayDefault) && (this->currentMask != PLAYER_MASK_NONE)) {
-        Mtx* bunnyEarMtx = Graph_Alloc(play->state.gfxCtx, 2 * sizeof(Mtx));
+        Mtx* bunnyEarMtx = GRAPH_ALLOC(play->state.gfxCtx, 2 * sizeof(Mtx));
 
         if (this->currentMask == PLAYER_MASK_BUNNY) {
             Vec3s earRot;
@@ -11410,14 +11410,14 @@ void Player_DrawGameplay(PlayState* play, Player* this, s32 lod, Gfx* cullDList,
             earRot.y = sBunnyEarKinematics.rot.z + 0xDBE;
             earRot.z = sBunnyEarKinematics.rot.x - 0x348A;
             Matrix_SetTranslateRotateYXZ(97.0f, -1203.0f, -240.0f, &earRot);
-            Matrix_ToMtx(bunnyEarMtx++, "../z_player.c", 19273);
+            MATRIX_TO_MTX(bunnyEarMtx++, "../z_player.c", 19273);
 
             // Left ear
             earRot.x = sBunnyEarKinematics.rot.y - 0x3E2;
             earRot.y = -sBunnyEarKinematics.rot.z - 0xDBE;
             earRot.z = sBunnyEarKinematics.rot.x - 0x348A;
             Matrix_SetTranslateRotateYXZ(97.0f, -1203.0f, 240.0f, &earRot);
-            Matrix_ToMtx(bunnyEarMtx, "../z_player.c", 19279);
+            MATRIX_TO_MTX(bunnyEarMtx, "../z_player.c", 19279);
         }
 
         gSPDisplayList(POLY_OPA_DISP++, sMaskDlists[this->currentMask - 1]);
@@ -11439,16 +11439,16 @@ void Player_DrawGameplay(PlayState* play, Player* this, s32 lod, Gfx* cullDList,
                 }
 
                 D_8085486C = (-sp5C * 4) + 36;
-                D_8085486C = D_8085486C * D_8085486C;
+                D_8085486C = SQ(D_8085486C);
                 D_8085486C = (s32)((Math_CosS(D_8085486C) * 100.0f) + 100.0f) + 55.0f;
-                D_8085486C = D_8085486C * (sp5C * (1.0f / 9.0f));
+                D_8085486C *= sp5C * (1.0f / 9.0f);
             }
 
             Matrix_SetTranslateRotateYXZ(this->actor.world.pos.x, this->actor.world.pos.y + 2.0f,
                                          this->actor.world.pos.z, &D_80854864);
             Matrix_Scale(4.0f, 4.0f, 4.0f, MTXMODE_APPLY);
 
-            gSPMatrix(POLY_XLU_DISP++, Matrix_NewMtx(play->state.gfxCtx, "../z_player.c", 19317),
+            gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_player.c", 19317),
                       G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
             gSPSegment(POLY_XLU_DISP++, 0x08,
                        Gfx_TwoTexScroll(play->state.gfxCtx, G_TX_RENDERTILE, 0, 0, 16, 32, 1, 0,
@@ -11545,7 +11545,7 @@ void Player_Draw(Actor* thisx, PlayState* play2) {
                                         32, 1, 0, (play->gameplayFrames * -2) % 128, 32, 32));
 
             Matrix_Scale(scale, scale, scale, MTXMODE_APPLY);
-            gSPMatrix(POLY_XLU_DISP++, Matrix_NewMtx(play->state.gfxCtx, "../z_player.c", 19459),
+            gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_player.c", 19459),
                       G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
             gDPSetEnvColor(POLY_XLU_DISP++, 0, 50, 100, 255);
             gSPDisplayList(POLY_XLU_DISP++, gEffIceFragment3DL);
@@ -13628,7 +13628,7 @@ void Player_Action_8084FBF4(Player* this, PlayState* play) {
         }
     }
 
-    this->shockTimer = 40;
+    this->bodyShockTimer = 40;
     func_8002F8F0(&this->actor, NA_SE_VO_LI_TAKEN_AWAY - SFX_FLAG + this->ageProperties->unk_92);
 }
 
