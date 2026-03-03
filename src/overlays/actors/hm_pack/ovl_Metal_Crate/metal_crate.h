@@ -2,7 +2,9 @@
 #define Z_METAL_CRATE_H
 
 #include "ultra64.h"
-#include "global.h"
+#include "actor.h"
+#include "collision_check.h"
+#include "play_state.h"
 
 struct MetalCrate;
 

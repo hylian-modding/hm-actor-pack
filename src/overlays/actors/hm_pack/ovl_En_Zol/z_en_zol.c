@@ -11,10 +11,25 @@
 #define ENZOL_TYPE (this->actor.params & 0xFF)
 
 #include "z_en_zol.h"
-#include "assets_hm_pack/objects/object_zol/object_zol.h"
+
+#include "libc64/qrand.h"
+#include "actor.h"
+#include "collision_check.h"
+#include "effect.h"
+#include "gfx.h"
+#include "gfx_setupdl.h"
+#include "ichain.h"
+#include "play_state.h"
+#include "player.h"
+#include "sfx.h"
+#include "sys_matrix.h"
+#include "z_en_item00.h"
+#include "z_lib.h"
+
+#include "assets/objects/hm_pack/object_zol/object_zol.h"
 #include "overlays/effects/ovl_Effect_Ss_Dead_Sound/z_eff_ss_dead_sound.h"
 
-#define FLAGS (ACTOR_FLAG_0 | ACTOR_FLAG_2 | ACTOR_FLAG_4)
+#define FLAGS (ACTOR_FLAG_ATTENTION_ENABLED | ACTOR_FLAG_HOSTILE | ACTOR_FLAG_UPDATE_CULLING_DISABLED)
 
 void EnZol_Init(Actor* thisx, PlayState* play);
 void EnZol_Destroy(Actor* thisx, PlayState* play);
@@ -52,7 +67,7 @@ typedef enum {
     ZOL_DEATH
 } EnZolState;
 
-const ActorInit En_Zol_InitVars = {
+const ActorProfile En_Zol_Profile = {
     ACTOR_EN_ZOL,
     ACTORCAT_ENEMY,
     FLAGS,
@@ -66,7 +81,7 @@ const ActorInit En_Zol_InitVars = {
 
 static ColliderCylinderInit sCylinderInit = {
     {
-        COLTYPE_HIT6,
+        COL_MATERIAL_HIT6,
         AT_ON | AT_TYPE_ENEMY,
         AC_ON | AC_TYPE_PLAYER,
         OC1_ON | OC1_TYPE_ALL,
@@ -74,58 +89,58 @@ static ColliderCylinderInit sCylinderInit = {
         COLSHAPE_CYLINDER,
     },
     {
-        ELEMTYPE_UNK0,
+        ELEM_MATERIAL_UNK0,
             { 0xFFCFFFFE, 0x00, 0x08 },
             { 0xFFCFFFFE, 0x00, 0x00 },
-        TOUCH_ON | TOUCH_SFX_NORMAL,
-        BUMP_ON | BUMP_HOOKABLE,
+        ATELEM_ON | ATELEM_SFX_NORMAL,
+        ACELEM_ON | ACELEM_HOOKABLE,
         OCELEM_ON,
     },
     { 54, 60, 0, { 0, 0, 0 } },
 };
 
 typedef enum {
-    /* 0x0 */ ZOL_DMGEFF_DEFAULT,
-    /* 0xF */ ZOL_DMGEFF_ICE = 0xF
+    /* 0x0 */ ZOL_DMG_REACT_DEFAULT,
+    /* 0xF */ ZOL_DMG_REACT_ICE = 0xF
 } ZolDamageEffect;
 
 static DamageTable sDamageTable[] = {
-    /* Deku nut      */ DMG_ENTRY(0, ZOL_DMGEFF_DEFAULT),
-    /* Deku stick    */ DMG_ENTRY(1, ZOL_DMGEFF_DEFAULT),
-    /* Slingshot     */ DMG_ENTRY(1, ZOL_DMGEFF_DEFAULT),
-    /* Explosive     */ DMG_ENTRY(1, ZOL_DMGEFF_DEFAULT),
-    /* Boomerang     */ DMG_ENTRY(0, ZOL_DMGEFF_DEFAULT),
-    /* Normal arrow  */ DMG_ENTRY(1, ZOL_DMGEFF_DEFAULT),
-    /* Hammer swing  */ DMG_ENTRY(1, ZOL_DMGEFF_DEFAULT),
-    /* Hookshot      */ DMG_ENTRY(0, ZOL_DMGEFF_DEFAULT),
-    /* Kokiri sword  */ DMG_ENTRY(1, ZOL_DMGEFF_DEFAULT),
-    /* Master sword  */ DMG_ENTRY(1, ZOL_DMGEFF_DEFAULT),
-    /* Giant's Knife */ DMG_ENTRY(2, ZOL_DMGEFF_DEFAULT),
-    /* Fire arrow    */ DMG_ENTRY(1, ZOL_DMGEFF_DEFAULT),
-    /* Ice arrow     */ DMG_ENTRY(4, ZOL_DMGEFF_ICE),
-    /* Light arrow   */ DMG_ENTRY(2, ZOL_DMGEFF_DEFAULT),
-    /* Unk arrow 1   */ DMG_ENTRY(2, ZOL_DMGEFF_DEFAULT),
-    /* Unk arrow 2   */ DMG_ENTRY(2, ZOL_DMGEFF_DEFAULT),
-    /* Unk arrow 3   */ DMG_ENTRY(2, ZOL_DMGEFF_DEFAULT),
-    /* Fire magic    */ DMG_ENTRY(0, ZOL_DMGEFF_DEFAULT),
-    /* Ice magic     */ DMG_ENTRY(3, ZOL_DMGEFF_ICE),
-    /* Light magic   */ DMG_ENTRY(0, ZOL_DMGEFF_DEFAULT),
-    /* Shield        */ DMG_ENTRY(0, ZOL_DMGEFF_DEFAULT),
-    /* Mirror Ray    */ DMG_ENTRY(0, ZOL_DMGEFF_DEFAULT),
-    /* Kokiri spin   */ DMG_ENTRY(1, ZOL_DMGEFF_DEFAULT),
-    /* Giant spin    */ DMG_ENTRY(4, ZOL_DMGEFF_DEFAULT),
-    /* Master spin   */ DMG_ENTRY(2, ZOL_DMGEFF_DEFAULT),
-    /* Kokiri jump   */ DMG_ENTRY(2, ZOL_DMGEFF_DEFAULT),
-    /* Giant jump    */ DMG_ENTRY(8, ZOL_DMGEFF_DEFAULT),
-    /* Master jump   */ DMG_ENTRY(4, ZOL_DMGEFF_DEFAULT),
-    /* Unknown 1     */ DMG_ENTRY(0, ZOL_DMGEFF_DEFAULT),
-    /* Unblockable   */ DMG_ENTRY(0, ZOL_DMGEFF_DEFAULT),
-    /* Hammer jump   */ DMG_ENTRY(4, ZOL_DMGEFF_DEFAULT),
-    /* Unknown 2     */ DMG_ENTRY(0, ZOL_DMGEFF_DEFAULT),
+    /* Deku nut      */ DMG_ENTRY(0, ZOL_DMG_REACT_DEFAULT),
+    /* Deku stick    */ DMG_ENTRY(1, ZOL_DMG_REACT_DEFAULT),
+    /* Slingshot     */ DMG_ENTRY(1, ZOL_DMG_REACT_DEFAULT),
+    /* Explosive     */ DMG_ENTRY(1, ZOL_DMG_REACT_DEFAULT),
+    /* Boomerang     */ DMG_ENTRY(0, ZOL_DMG_REACT_DEFAULT),
+    /* Normal arrow  */ DMG_ENTRY(1, ZOL_DMG_REACT_DEFAULT),
+    /* Hammer swing  */ DMG_ENTRY(1, ZOL_DMG_REACT_DEFAULT),
+    /* Hookshot      */ DMG_ENTRY(0, ZOL_DMG_REACT_DEFAULT),
+    /* Kokiri sword  */ DMG_ENTRY(1, ZOL_DMG_REACT_DEFAULT),
+    /* Master sword  */ DMG_ENTRY(1, ZOL_DMG_REACT_DEFAULT),
+    /* Giant's Knife */ DMG_ENTRY(2, ZOL_DMG_REACT_DEFAULT),
+    /* Fire arrow    */ DMG_ENTRY(1, ZOL_DMG_REACT_DEFAULT),
+    /* Ice arrow     */ DMG_ENTRY(4, ZOL_DMG_REACT_ICE),
+    /* Light arrow   */ DMG_ENTRY(2, ZOL_DMG_REACT_DEFAULT),
+    /* Unk arrow 1   */ DMG_ENTRY(2, ZOL_DMG_REACT_DEFAULT),
+    /* Unk arrow 2   */ DMG_ENTRY(2, ZOL_DMG_REACT_DEFAULT),
+    /* Unk arrow 3   */ DMG_ENTRY(2, ZOL_DMG_REACT_DEFAULT),
+    /* Fire magic    */ DMG_ENTRY(0, ZOL_DMG_REACT_DEFAULT),
+    /* Ice magic     */ DMG_ENTRY(3, ZOL_DMG_REACT_ICE),
+    /* Light magic   */ DMG_ENTRY(0, ZOL_DMG_REACT_DEFAULT),
+    /* Shield        */ DMG_ENTRY(0, ZOL_DMG_REACT_DEFAULT),
+    /* Mirror Ray    */ DMG_ENTRY(0, ZOL_DMG_REACT_DEFAULT),
+    /* Kokiri spin   */ DMG_ENTRY(1, ZOL_DMG_REACT_DEFAULT),
+    /* Giant spin    */ DMG_ENTRY(4, ZOL_DMG_REACT_DEFAULT),
+    /* Master spin   */ DMG_ENTRY(2, ZOL_DMG_REACT_DEFAULT),
+    /* Kokiri jump   */ DMG_ENTRY(2, ZOL_DMG_REACT_DEFAULT),
+    /* Giant jump    */ DMG_ENTRY(8, ZOL_DMG_REACT_DEFAULT),
+    /* Master jump   */ DMG_ENTRY(4, ZOL_DMG_REACT_DEFAULT),
+    /* Unknown 1     */ DMG_ENTRY(0, ZOL_DMG_REACT_DEFAULT),
+    /* Unblockable   */ DMG_ENTRY(0, ZOL_DMG_REACT_DEFAULT),
+    /* Hammer jump   */ DMG_ENTRY(4, ZOL_DMG_REACT_DEFAULT),
+    /* Unknown 2     */ DMG_ENTRY(0, ZOL_DMG_REACT_DEFAULT),
 };
 
 static InitChainEntry sInitChain[] = {
-    ICHAIN_F32(targetArrowOffset, 200, ICHAIN_CONTINUE),
+    ICHAIN_F32(lockOnArrowOffset, 200, ICHAIN_CONTINUE),
     ICHAIN_F32(minVelocityY, -40, ICHAIN_CONTINUE),
     ICHAIN_F32_DIV1000(gravity, -1000, ICHAIN_STOP),
 };
@@ -188,7 +203,7 @@ void EnZol_Init(Actor* thisx, PlayState* play) {
 
     thisx->focus.pos = thisx->world.pos;
     thisx->focus.pos.y += 20.0f;
-    thisx->targetMode = 3;
+    thisx->attentionRangeType = ATTENTION_RANGE_3;
     
     Collider_InitCylinder(play, &this->collider);
     Collider_SetCylinder(play, &this->collider, &this->actor, &sCylinderInit);
@@ -201,10 +216,10 @@ void EnZol_Init(Actor* thisx, PlayState* play) {
         case ZOL_GREEN:
         break;
         case ZOL_RED:
-            this->collider.base.colType = COLTYPE_HIT7; // red blood hit effect
+            this->collider.base.colMaterial = COL_MATERIAL_HIT7; // red blood hit effect
         break;
         case ZOL_SPLIT:
-            this->collider.base.colType = COLTYPE_HIT7; // red blood hit effect
+            this->collider.base.colMaterial = COL_MATERIAL_HIT7; // red blood hit effect
             this->collider.dim.radius = 26;
             this->collider.dim.height = 35;
             this->actor.shape.rot.y += 0x4000; 
@@ -222,7 +237,7 @@ void EnZol_Init(Actor* thisx, PlayState* play) {
                 this->actor.scale.x = this->actor.scale.z  = 0.0f;
                 this->actor.scale.y = 0.01f;
 
-                this->actor.flags &= ~ACTOR_FLAG_0; // navi target disabled
+                this->actor.flags &= ~ACTOR_FLAG_ATTENTION_ENABLED; // navi target disabled
                 EnZol_SetupWaitForPlayer(this);
                 break;
             case ZOL_CEILING:
@@ -274,7 +289,7 @@ void EnZol_WaitForPlayerCeiling(EnZol* this, PlayState* play) {
 // zol appears
 void EnZol_SetupGrow(EnZol* this) {
     this->timer = 18;
-    this->actor.flags |= ACTOR_FLAG_0; // targetable
+    this->actor.flags |= ACTOR_FLAG_ATTENTION_ENABLED; // targetable
     this->actionFunc = EnZol_Grow;
 }
 
@@ -541,7 +556,7 @@ void EnZol_DeathCry(EnZol* this, PlayState* play) {
 
 // water check
 void EnZol_CheckDrowned(EnZol* this) {
-    if (this->state != ZOL_DEATH && (this->actor.bgCheckFlags & BGCHECKFLAG_WATER) && (this->actor.yDistToWater > 5.0f)) {
+    if (this->state != ZOL_DEATH && (this->actor.bgCheckFlags & BGCHECKFLAG_WATER) && (this->actor.depthInWater > 5.0f)) {
         this->actor.gravity = -0.1f;
         EnZol_SetupDeathCry(this);
         return;
@@ -556,10 +571,10 @@ void EnZol_CheckDamage(Actor* thisx, PlayState* play) {
 
     if (this->collider.base.acFlags & AC_HIT && this->actionFunc != EnZol_Recoil && this->state != ZOL_WAIT  && this->state != ZOL_DEATH) {
         this->collider.base.acFlags &= ~AC_HIT;
-        this->damageEffect = thisx->colChkInfo.damageEffect;
+        this->damageEffect = thisx->colChkInfo.damageReaction;
 
         if ((thisx->colorFilterTimer == 0) || ((thisx->colorFilterParams & 0x4000) == 0)) {
-            if (this->actor.colChkInfo.damageEffect == ZOL_DMGEFF_ICE && this->state != ZOL_FROZEN) {
+            if (this->actor.colChkInfo.damageReaction == ZOL_DMG_REACT_ICE && this->state != ZOL_FROZEN) {
                 EnZol_SetupFrozen(this);
             } else {
                 Actor_SetColorFilter(thisx, 0x4000, 0xFF, 0, 8);
@@ -641,7 +656,7 @@ void EnZol_Draw(Actor* thisx, PlayState* play) {
     Matrix_SetTranslateRotateYXZ(this->actor.world.pos.x, this->actor.world.pos.y,
                                  this->actor.world.pos.z, &this->actor.shape.rot);
     Matrix_Scale(this->actor.scale.x, this->actor.scale.y, this->actor.scale.z, MTXMODE_APPLY);
-    gSPMatrix(POLY_XLU_DISP++, Matrix_NewMtx(play->state.gfxCtx, __FILE__, __LINE__),
+    gSPMatrix(POLY_XLU_DISP++, Matrix_Finalize(play->state.gfxCtx, __FILE__, __LINE__),
                   G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
 
     switch (ENZOL_TYPE) {

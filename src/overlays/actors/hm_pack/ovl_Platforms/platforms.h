@@ -2,7 +2,8 @@
 #define Z_PLATFORMS_H
 
 #include "ultra64.h"
-#include "global.h"
+#include "actor.h"
+#include "play_state.h"
 
 struct Platforms;
 

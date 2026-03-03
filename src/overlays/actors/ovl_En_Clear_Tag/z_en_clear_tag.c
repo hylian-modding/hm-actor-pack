@@ -1,6 +1,21 @@
 #include "z_en_clear_tag.h"
 
-#define FLAGS (ACTOR_FLAG_0 | ACTOR_FLAG_2 | ACTOR_FLAG_4 | ACTOR_FLAG_5)
+#include "libc64/math64.h"
+#include "libc64/qrand.h"
+#include "attributes.h"
+#include "gfx.h"
+#include "gfx_setupdl.h"
+#include "printf.h"
+#include "rand.h"
+#include "sfx.h"
+#include "sys_matrix.h"
+#include "z_lib.h"
+#include "play_state.h"
+#include "player.h"
+
+#define FLAGS                                                                                 \
+    (ACTOR_FLAG_ATTENTION_ENABLED | ACTOR_FLAG_HOSTILE | ACTOR_FLAG_UPDATE_CULLING_DISABLED | \
+     ACTOR_FLAG_DRAW_CULLING_DISABLED)
 
 void EnClearTag_Init(Actor* thisx, PlayState* play);
 void EnClearTag_Destroy(Actor* thisx, PlayState* play);
@@ -18,7 +33,7 @@ void EnClearTag_CreateFlashEffect(PlayState* play, Vec3f* position, f32 scale, f
 
 void EnClearTag_CalculateFloorTangent(EnClearTag* this);
 
-ActorInit En_Clear_Tag_InitVars = {
+ActorProfile En_Clear_Tag_Profile = {
     /**/ ACTOR_EN_CLEAR_TAG,
     /**/ ACTORCAT_BOSS,
     /**/ FLAGS,
@@ -36,7 +51,7 @@ static Vec3f sZeroVector = { 0.0f, 0.0f, 0.0f };
 
 static ColliderCylinderInit sArwingCylinderInit = {
     {
-        COLTYPE_HIT3,
+        COL_MATERIAL_HIT3,
         AT_ON | AT_TYPE_ENEMY,
         AC_ON | AC_TYPE_PLAYER,
         OC1_ON | OC1_TYPE_ALL,
@@ -44,11 +59,11 @@ static ColliderCylinderInit sArwingCylinderInit = {
         COLSHAPE_CYLINDER,
     },
     {
-        ELEMTYPE_UNK0,
-        { 0xFFCFFFFF, 0x00, 0x04 },
-        { 0xFFDFFFFF, 0x00, 0x00 },
-        TOUCH_ON | TOUCH_SFX_NORMAL,
-        BUMP_ON,
+        ELEM_MATERIAL_UNK0,
+        { 0xFFCFFFFF, HIT_SPECIAL_EFFECT_NONE, 0x04 },
+        { 0xFFDFFFFF, HIT_BACKLASH_NONE, 0x00 },
+        ATELEM_ON | ATELEM_SFX_NORMAL,
+        ACELEM_ON,
         OCELEM_ON,
     },
     { 15, 30, 10, { 0, 0, 0 } },
@@ -56,7 +71,7 @@ static ColliderCylinderInit sArwingCylinderInit = {
 
 static ColliderCylinderInit sLaserCylinderInit = {
     {
-        COLTYPE_METAL,
+        COL_MATERIAL_METAL,
         AT_ON | AT_TYPE_ENEMY,
         AC_ON | AC_TYPE_PLAYER,
         OC1_ON | OC1_TYPE_ALL,
@@ -64,11 +79,11 @@ static ColliderCylinderInit sLaserCylinderInit = {
         COLSHAPE_CYLINDER,
     },
     {
-        ELEMTYPE_UNK0,
-        { 0xFFCFFFFF, 0x00, 0x04 },
-        { 0xFFDFFFFF, 0x00, 0x00 },
-        TOUCH_ON | TOUCH_SFX_NORMAL,
-        BUMP_ON,
+        ELEM_MATERIAL_UNK0,
+        { 0xFFCFFFFF, HIT_SPECIAL_EFFECT_NONE, 0x04 },
+        { 0xFFDFFFFF, HIT_BACKLASH_NONE, 0x00 },
+        ATELEM_ON | ATELEM_SFX_NORMAL,
+        ACELEM_ON,
         OCELEM_ON,
     },
     { 15, 30, 10, { 0, 0, 0 } },
@@ -250,8 +265,8 @@ void EnClearTag_Init(Actor* thisx, PlayState* play) {
         Collider_SetCylinder(play, &this->collider, &this->actor, &sLaserCylinderInit);
         Actor_PlaySfx(&this->actor, NA_SE_IT_SWORD_REFLECT_MG);
     } else { // Initialize the Arwing.
-        this->actor.flags |= ACTOR_FLAG_0;
-        this->actor.targetMode = 5;
+        this->actor.flags |= ACTOR_FLAG_ATTENTION_ENABLED;
+        this->actor.attentionRangeType = ATTENTION_RANGE_5;
         Collider_SetCylinder(play, &this->collider, &this->actor, &sArwingCylinderInit);
         this->actor.colChkInfo.health = 3;
 
@@ -283,11 +298,15 @@ void EnClearTag_Init(Actor* thisx, PlayState* play) {
  * This is used for the ground flash display lists and Arwing shadow display lists to snap onto the floor.
  */
 void EnClearTag_CalculateFloorTangent(EnClearTag* this) {
+    f32 x;
+    f32 y;
+    f32 z;
+
     // If there is a floor poly below the Arwing, calculate the floor tangent.
     if (this->actor.floorPoly != NULL) {
-        f32 x = COLPOLY_GET_NORMAL(this->actor.floorPoly->normal.x);
-        f32 y = COLPOLY_GET_NORMAL(this->actor.floorPoly->normal.y);
-        f32 z = COLPOLY_GET_NORMAL(this->actor.floorPoly->normal.z);
+        x = COLPOLY_GET_NORMAL(this->actor.floorPoly->normal.x);
+        y = COLPOLY_GET_NORMAL(this->actor.floorPoly->normal.y);
+        z = COLPOLY_GET_NORMAL(this->actor.floorPoly->normal.z);
 
         this->floorTangent.x = -Math_FAtan2F(-z * y, 1.0f);
         this->floorTangent.z = Math_FAtan2F(-x * y, 1.0f);
@@ -427,7 +446,7 @@ void EnClearTag_Update(Actor* thisx, PlayState* play2) {
                     Math_ApproachZeroF(&this->roll, 0.1f, 0.2f);
                 }
 
-                // Calculate a vector towards the targetted position.
+                // Calculate a vector towards the targeted position.
                 vectorToTargetX = this->targetPosition.x - this->actor.world.pos.x;
                 vectorToTargetY = this->targetPosition.y - this->actor.world.pos.y;
                 vectorToTargetZ = this->targetPosition.z - this->actor.world.pos.z;
@@ -533,7 +552,7 @@ void EnClearTag_Update(Actor* thisx, PlayState* play2) {
                         if (this->drawMode != CLEAR_TAG_DRAW_MODE_ARWING) {
                             this->drawMode = CLEAR_TAG_DRAW_MODE_EFFECT;
                             this->deathTimer = 70;
-                            this->actor.flags &= ~ACTOR_FLAG_0;
+                            this->actor.flags &= ~ACTOR_FLAG_ATTENTION_ENABLED;
                         } else {
                             Actor_Kill(&this->actor);
                         }
@@ -573,8 +592,8 @@ void EnClearTag_Update(Actor* thisx, PlayState* play2) {
 
         if (this->state < CLEAR_TAG_STATE_LASER) {
             // Play the Arwing cutscene.
-            osSyncPrintf("DEMO_MODE %d\n", this->cutsceneMode);
-            osSyncPrintf("CAMERA_NO %d\n", this->subCamId);
+            PRINTF("DEMO_MODE %d\n", this->cutsceneMode);
+            PRINTF("CAMERA_NO %d\n", this->subCamId);
 
             if (this->cutsceneMode != CLEAR_TAG_CUTSCENE_MODE_NONE) {
                 f32 subCamCircleX;
@@ -676,7 +695,7 @@ void EnClearTag_Update(Actor* thisx, PlayState* play2) {
 /**
  * EnClear_Tag draw function.
  * Laser clear tag type will draw two lasers.
- * Arwing clear tage types will draw the Arwing, the backfire, and a shadow.
+ * Arwing clear tag types will draw the Arwing, the backfire, and a shadow.
  */
 void EnClearTag_Draw(Actor* thisx, PlayState* play) {
     s32 pad;
@@ -691,13 +710,11 @@ void EnClearTag_Draw(Actor* thisx, PlayState* play) {
             gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 0, 255, 0, 255);
 
             Matrix_Translate(25.0f, 0.0f, 0.0f, MTXMODE_APPLY);
-            gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_en_clear_tag.c", 1004),
-                      G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+            MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_en_clear_tag.c", 1004);
             gSPDisplayList(POLY_XLU_DISP++, gArwingLaserDL);
 
             Matrix_Translate(-50.0f, 0.0f, 0.0f, MTXMODE_APPLY);
-            gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_en_clear_tag.c", 1011),
-                      G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+            MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_en_clear_tag.c", 1011);
             gSPDisplayList(POLY_XLU_DISP++, gArwingLaserDL);
         } else {
             // Draw the Arwing itself.
@@ -714,8 +731,7 @@ void EnClearTag_Draw(Actor* thisx, PlayState* play) {
                 Matrix_RotateY(yRotation, MTXMODE_APPLY);
             }
             Matrix_RotateZ(this->roll, MTXMODE_APPLY);
-            gSPMatrix(POLY_OPA_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_en_clear_tag.c", 1030),
-                      G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+            MATRIX_FINALIZE_AND_LOAD(POLY_OPA_DISP++, play->state.gfxCtx, "../z_en_clear_tag.c", 1030);
             gSPDisplayList(POLY_OPA_DISP++, gArwingDL);
 
             // Draw the Arwing Backfire
@@ -728,8 +744,7 @@ void EnClearTag_Draw(Actor* thisx, PlayState* play) {
             gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 255, 255, 200, 155);
             gDPPipeSync(POLY_XLU_DISP++);
             gDPSetEnvColor(POLY_XLU_DISP++, 255, 50, 0, 0);
-            gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_en_clear_tag.c", 1067),
-                      G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+            MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_en_clear_tag.c", 1067);
             gSPDisplayList(POLY_XLU_DISP++, gArwingBackfireDL);
 
             // Draw the Arwing shadow.
@@ -752,8 +767,7 @@ void EnClearTag_Draw(Actor* thisx, PlayState* play) {
                 Matrix_RotateY(yRotation, MTXMODE_APPLY);
             }
             Matrix_RotateZ(this->roll, MTXMODE_APPLY);
-            gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_en_clear_tag.c", 1104),
-                      G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+            MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_en_clear_tag.c", 1104);
             gSPDisplayList(POLY_XLU_DISP++, gArwingShadowDL);
         }
     }
@@ -910,8 +924,7 @@ void EnClearTag_DrawEffects(PlayState* play) {
             Matrix_Scale(effect->scale, effect->scale, effect->scale, MTXMODE_APPLY);
             Matrix_RotateY(effect->rotationY, MTXMODE_APPLY);
             Matrix_RotateX(effect->rotationX, MTXMODE_APPLY);
-            gSPMatrix(POLY_OPA_DISP++, MATRIX_NEW(gfxCtx, "../z_en_clear_tag.c", 1307),
-                      G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+            MATRIX_FINALIZE_AND_LOAD(POLY_OPA_DISP++, gfxCtx, "../z_en_clear_tag.c", 1307);
             gSPDisplayList(POLY_OPA_DISP++, gArwingDebrisEffectDL);
         }
     }
@@ -934,8 +947,7 @@ void EnClearTag_DrawEffects(PlayState* play) {
             Matrix_RotateX(effect->floorTangent.x, MTXMODE_APPLY);
             Matrix_RotateZ(effect->floorTangent.z, MTXMODE_APPLY);
             Matrix_Scale(effect->scale + effect->scale, 1.0f, effect->scale * 2.0f, MTXMODE_APPLY);
-            gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(gfxCtx, "../z_en_clear_tag.c", 1342),
-                      G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+            MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, gfxCtx, "../z_en_clear_tag.c", 1342);
             gSPDisplayList(POLY_XLU_DISP++, gArwingFlashEffectGroundDL);
         }
     }
@@ -964,8 +976,7 @@ void EnClearTag_DrawEffects(PlayState* play) {
             Matrix_ReplaceRotation(&play->billboardMtxF);
             Matrix_Scale(effect->scale, effect->scale, 1.0f, MTXMODE_APPLY);
             Matrix_Translate(0.0f, 20.0f, 0.0f, MTXMODE_APPLY);
-            gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(gfxCtx, "../z_en_clear_tag.c", 1392),
-                      G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+            MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, gfxCtx, "../z_en_clear_tag.c", 1392);
             gSPDisplayList(POLY_XLU_DISP++, gArwingFireEffectDL);
         }
     }
@@ -990,8 +1001,7 @@ void EnClearTag_DrawEffects(PlayState* play) {
             Matrix_Translate(effect->position.x, effect->position.y, effect->position.z, MTXMODE_NEW);
             Matrix_ReplaceRotation(&play->billboardMtxF);
             Matrix_Scale(effect->scale, effect->scale, 1.0f, MTXMODE_APPLY);
-            gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(gfxCtx, "../z_en_clear_tag.c", 1439),
-                      G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+            MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, gfxCtx, "../z_en_clear_tag.c", 1439);
             gSPDisplayList(POLY_XLU_DISP++, gArwingFireEffectDL);
         }
     }
@@ -1013,8 +1023,7 @@ void EnClearTag_DrawEffects(PlayState* play) {
             Matrix_Translate(effect->position.x, effect->position.y, effect->position.z, MTXMODE_NEW);
             Matrix_ReplaceRotation(&play->billboardMtxF);
             Matrix_Scale(effect->scale, effect->scale, 1.0f, MTXMODE_APPLY);
-            gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(gfxCtx, "../z_en_clear_tag.c", 1470),
-                      G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+            MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, gfxCtx, "../z_en_clear_tag.c", 1470);
             gSPDisplayList(POLY_XLU_DISP++, gArwingFlashEffectDL);
         }
     }

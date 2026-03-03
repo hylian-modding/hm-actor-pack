@@ -1,11 +1,39 @@
 #include "z_boss_tw.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
-#include "assets/objects/object_tw/object_tw.h"
 #include "overlays/actors/ovl_Door_Warp1/z_door_warp1.h"
 
-#define FLAGS (ACTOR_FLAG_0 | ACTOR_FLAG_2 | ACTOR_FLAG_4 | ACTOR_FLAG_5)
+#include "libc64/math64.h"
+#include "libc64/qrand.h"
+#include "array_count.h"
+#include "attributes.h"
+#include "controller.h"
+#include "gfx.h"
+#include "gfx_setupdl.h"
+#include "ichain.h"
+#include "printf.h"
+#include "rand.h"
+#include "rumble.h"
+#include "segmented_address.h"
+#include "seqcmd.h"
+#include "sequence.h"
+#include "sfx.h"
+#include "sys_matrix.h"
+#include "z_lib.h"
+#include "play_state.h"
+#include "player.h"
+#include "save.h"
+#include "skin_matrix.h"
 
-typedef enum {
+#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/object_tw/object_tw.h"
+
+#pragma increment_block_number "gc-eu:128 gc-eu-mq:128 gc-jp:128 gc-jp-ce:128 gc-jp-mq:128 gc-us:128 gc-us-mq:128" \
+                               "ique-cn:0 ntsc-1.0:128 ntsc-1.1:128 ntsc-1.2:128 pal-1.0:128 pal-1.1:128"
+
+#define FLAGS                                                                                 \
+    (ACTOR_FLAG_ATTENTION_ENABLED | ACTOR_FLAG_HOSTILE | ACTOR_FLAG_UPDATE_CULLING_DISABLED | \
+     ACTOR_FLAG_DRAW_CULLING_DISABLED)
+
+typedef enum TwEffType {
     /*  0 */ TWEFF_NONE,
     /*  1 */ TWEFF_DOT,
     /*  2 */ TWEFF_2,
@@ -19,13 +47,13 @@ typedef enum {
     /* 10 */ TWEFF_SHLD_HIT
 } TwEffType;
 
-typedef enum {
+typedef enum EffectWork {
     /* 0 */ EFF_ARGS,
     /* 1 */ EFF_UNKS1,
     /* 2 */ EFF_WORK_MAX
 } EffectWork;
 
-typedef enum {
+typedef enum EffectFWork {
     /* 0 */ EFF_SCALE,
     /* 1 */ EFF_DIST,
     /* 2 */ EFF_ROLL,
@@ -33,7 +61,7 @@ typedef enum {
     /* 4 */ EFF_FWORK_MAX
 } EffectFWork;
 
-typedef enum {
+typedef enum TwinrovaType {
     /* 0x00 */ TW_KOTAKE,
     /* 0x01 */ TW_KOUME,
     /* 0x02 */ TW_TWINROVA,
@@ -47,7 +75,7 @@ typedef enum {
 
 #define BOSS_TW_EFFECT_COUNT 150
 
-typedef struct {
+typedef struct BossTwEffect {
     /* 0x0000 */ u8 type;
     /* 0x0001 */ u8 frame;
     /* 0x0004 */ Vec3f pos;
@@ -116,7 +144,7 @@ void BossTw_TwinrovaChargeBlast(BossTw* this, PlayState* play);
 void BossTw_TwinrovaSetupSpin(BossTw* this, PlayState* play);
 void BossTw_UpdateEffects(PlayState* play);
 
-ActorInit Boss_Tw_InitVars = {
+ActorProfile Boss_Tw_Profile = {
     /**/ ACTOR_BOSS_TW,
     /**/ ACTORCAT_BOSS,
     /**/ FLAGS,
@@ -133,7 +161,7 @@ static Vec3f sZeroVector = { 0.0f, 0.0f, 0.0f };
 
 static ColliderCylinderInit sCylinderInitBlasts = {
     {
-        COLTYPE_NONE,
+        COL_MATERIAL_NONE,
         AT_ON | AT_TYPE_ALL,
         AC_ON | AC_TYPE_PLAYER,
         OC1_ON | OC1_TYPE_PLAYER,
@@ -141,11 +169,11 @@ static ColliderCylinderInit sCylinderInitBlasts = {
         COLSHAPE_CYLINDER,
     },
     {
-        ELEMTYPE_UNK0,
-        { 0xFFCFFFFF, 0x00, 0x30 },
-        { 0x00100000, 0x00, 0x00 },
-        TOUCH_ON | TOUCH_SFX_NORMAL,
-        BUMP_ON,
+        ELEM_MATERIAL_UNK0,
+        { 0xFFCFFFFF, HIT_SPECIAL_EFFECT_NONE, 0x30 },
+        { 0x00100000, HIT_BACKLASH_NONE, 0x00 },
+        ATELEM_ON | ATELEM_SFX_NORMAL,
+        ACELEM_ON,
         OCELEM_ON,
     },
     { 25, 35, -17, { 0, 0, 0 } },
@@ -153,7 +181,7 @@ static ColliderCylinderInit sCylinderInitBlasts = {
 
 static ColliderCylinderInit sCylinderInitKoumeKotake = {
     {
-        COLTYPE_HIT3,
+        COL_MATERIAL_HIT3,
         AT_ON | AT_TYPE_ENEMY,
         AC_ON | AC_TYPE_PLAYER,
         OC1_ON | OC1_TYPE_PLAYER,
@@ -161,11 +189,11 @@ static ColliderCylinderInit sCylinderInitKoumeKotake = {
         COLSHAPE_CYLINDER,
     },
     {
-        ELEMTYPE_UNK0,
-        { 0xFFCFFFFF, 0x00, 0x20 },
-        { 0xFFCDFFFE, 0x00, 0x00 },
-        TOUCH_ON | TOUCH_SFX_NORMAL,
-        BUMP_ON,
+        ELEM_MATERIAL_UNK0,
+        { 0xFFCFFFFF, HIT_SPECIAL_EFFECT_NONE, 0x20 },
+        { 0xFFCDFFFE, HIT_BACKLASH_NONE, 0x00 },
+        ATELEM_ON | ATELEM_SFX_NORMAL,
+        ACELEM_ON,
         OCELEM_ON,
     },
     { 45, 120, -30, { 0, 0, 0 } },
@@ -173,7 +201,7 @@ static ColliderCylinderInit sCylinderInitKoumeKotake = {
 
 static ColliderCylinderInit sCylinderInitTwinrova = {
     {
-        COLTYPE_HIT3,
+        COL_MATERIAL_HIT3,
         AT_ON | AT_TYPE_ENEMY,
         AC_ON | AC_TYPE_PLAYER,
         OC1_ON | OC1_TYPE_ALL,
@@ -181,11 +209,11 @@ static ColliderCylinderInit sCylinderInitTwinrova = {
         COLSHAPE_CYLINDER,
     },
     {
-        ELEMTYPE_UNK0,
-        { 0xFFCFFFFF, 0x00, 0x20 },
-        { 0xFFCDFFFE, 0x00, 0x00 },
-        TOUCH_ON | TOUCH_SFX_NORMAL,
-        BUMP_ON | BUMP_HOOKABLE,
+        ELEM_MATERIAL_UNK0,
+        { 0xFFCFFFFF, HIT_SPECIAL_EFFECT_NONE, 0x20 },
+        { 0xFFCDFFFE, HIT_BACKLASH_NONE, 0x00 },
+        ATELEM_ON | ATELEM_SFX_NORMAL,
+        ACELEM_ON | ACELEM_HOOKABLE,
         OCELEM_ON,
     },
     { 45, 120, -30, { 0, 0, 0 } },
@@ -201,9 +229,9 @@ static Vec3f sTwinrovaPillarPos[] = {
 static u8 sTwInitialized = false;
 
 static InitChainEntry sInitChain[] = {
-    ICHAIN_U8(targetMode, 5, ICHAIN_CONTINUE),
+    ICHAIN_U8(attentionRangeType, ATTENTION_RANGE_5, ICHAIN_CONTINUE),
     ICHAIN_F32_DIV1000(gravity, 0, ICHAIN_CONTINUE),
-    ICHAIN_F32(targetArrowOffset, 0, ICHAIN_STOP),
+    ICHAIN_F32(lockOnArrowOffset, 0, ICHAIN_STOP),
 };
 
 static s8 sEnvType;
@@ -233,7 +261,7 @@ static s16 D_8094C87C;
 static u8 D_8094C87E;
 static BossTwEffect sEffects[BOSS_TW_EFFECT_COUNT];
 
-void BossTw_AddDotEffect(PlayState* play, Vec3f* initalPos, Vec3f* initalSpeed, Vec3f* accel, f32 scale, s16 args,
+void BossTw_AddDotEffect(PlayState* play, Vec3f* initialPos, Vec3f* initialSpeed, Vec3f* accel, f32 scale, s16 args,
                          s16 countLimit) {
     s16 i;
     BossTwEffect* eff;
@@ -241,8 +269,8 @@ void BossTw_AddDotEffect(PlayState* play, Vec3f* initalPos, Vec3f* initalSpeed, 
     for (i = 0, eff = play->specialEffects; i < countLimit; i++, eff++) {
         if (eff->type == TWEFF_NONE) {
             eff->type = TWEFF_DOT;
-            eff->pos = *initalPos;
-            eff->curSpeed = *initalSpeed;
+            eff->pos = *initialPos;
+            eff->curSpeed = *initialSpeed;
             eff->accel = *accel;
             eff->workf[EFF_SCALE] = scale / 1000.0f;
             eff->alpha = 255;
@@ -253,7 +281,7 @@ void BossTw_AddDotEffect(PlayState* play, Vec3f* initalPos, Vec3f* initalSpeed, 
     }
 }
 
-void BossTw_AddDmgCloud(PlayState* play, s16 type, Vec3f* initialPos, Vec3f* initalSpeed, Vec3f* accel, f32 scale,
+void BossTw_AddDmgCloud(PlayState* play, s16 type, Vec3f* initialPos, Vec3f* initialSpeed, Vec3f* accel, f32 scale,
                         s16 alpha, s16 args, s16 countLimit) {
     s16 i;
     BossTwEffect* eff;
@@ -262,7 +290,7 @@ void BossTw_AddDmgCloud(PlayState* play, s16 type, Vec3f* initialPos, Vec3f* ini
         if (eff->type == TWEFF_NONE) {
             eff->type = type;
             eff->pos = *initialPos;
-            eff->curSpeed = *initalSpeed;
+            eff->curSpeed = *initialSpeed;
             eff->accel = *accel;
             eff->workf[EFF_SCALE] = scale / 1000.0f;
             eff->work[EFF_ARGS] = args;
@@ -273,7 +301,7 @@ void BossTw_AddDmgCloud(PlayState* play, s16 type, Vec3f* initialPos, Vec3f* ini
     }
 }
 
-void BossTw_AddRingEffect(PlayState* play, Vec3f* initalPos, f32 scale, f32 arg3, s16 alpha, s16 args, s16 arg6,
+void BossTw_AddRingEffect(PlayState* play, Vec3f* initialPos, f32 scale, f32 arg3, s16 alpha, s16 args, s16 arg6,
                           s16 countLimit) {
     s16 i;
     BossTwEffect* eff;
@@ -281,7 +309,7 @@ void BossTw_AddRingEffect(PlayState* play, Vec3f* initalPos, f32 scale, f32 arg3
     for (i = 0, eff = play->specialEffects; i < countLimit; i++, eff++) {
         if (eff->type == TWEFF_NONE) {
             eff->type = TWEFF_RING;
-            eff->pos = *initalPos;
+            eff->pos = *initialPos;
             eff->curSpeed = sZeroVector;
             eff->accel = sZeroVector;
             eff->workf[EFF_SCALE] = scale * 0.0025f;
@@ -320,15 +348,15 @@ void BossTw_AddPlayerFreezeEffect(PlayState* play, Actor* target) {
     }
 }
 
-void BossTw_AddFlameEffect(PlayState* play, Vec3f* initalPos, Vec3f* initalSpeed, Vec3f* accel, f32 scale, s16 args) {
+void BossTw_AddFlameEffect(PlayState* play, Vec3f* initialPos, Vec3f* initialSpeed, Vec3f* accel, f32 scale, s16 args) {
     s16 i;
     BossTwEffect* eff;
 
     for (i = 0, eff = play->specialEffects; i < BOSS_TW_EFFECT_COUNT; i++, eff++) {
         if (eff->type == TWEFF_NONE) {
             eff->type = TWEFF_FLAME;
-            eff->pos = *initalPos;
-            eff->curSpeed = *initalSpeed;
+            eff->pos = *initialPos;
+            eff->curSpeed = *initialSpeed;
             eff->accel = *accel;
             eff->workf[EFF_SCALE] = scale / 1000.0f;
             eff->work[EFF_ARGS] = args;
@@ -362,7 +390,7 @@ void BossTw_AddMergeFlameEffect(PlayState* play, Vec3f* initialPos, f32 scale, f
     }
 }
 
-void BossTw_AddShieldBlastEffect(PlayState* play, Vec3f* initalPos, Vec3f* initalSpeed, Vec3f* accel, f32 scale,
+void BossTw_AddShieldBlastEffect(PlayState* play, Vec3f* initialPos, Vec3f* initialSpeed, Vec3f* accel, f32 scale,
                                  f32 arg5, s16 alpha, s16 args) {
     s16 i;
     BossTwEffect* eff;
@@ -370,8 +398,8 @@ void BossTw_AddShieldBlastEffect(PlayState* play, Vec3f* initalPos, Vec3f* inita
     for (i = 0, eff = play->specialEffects; i < BOSS_TW_EFFECT_COUNT; i++, eff++) {
         if (eff->type == TWEFF_NONE) {
             eff->type = TWEFF_SHLD_BLST;
-            eff->pos = *initalPos;
-            eff->curSpeed = *initalSpeed;
+            eff->pos = *initialPos;
+            eff->curSpeed = *initialSpeed;
             eff->accel = *accel;
             eff->workf[EFF_SCALE] = scale / 1000.0f;
             eff->workf[EFF_DIST] = arg5 / 1000.0f;
@@ -457,14 +485,14 @@ void BossTw_Init(Actor* thisx, PlayState* play2) {
         Actor_SetScale(&this->actor, 0.01f);
         this->actor.update = BossTw_BlastUpdate;
         this->actor.draw = BossTw_BlastDraw;
-        this->actor.flags &= ~ACTOR_FLAG_0;
+        this->actor.flags &= ~ACTOR_FLAG_ATTENTION_ENABLED;
 
         Collider_InitCylinder(play, &this->collider);
         Collider_SetCylinder(play, &this->collider, &this->actor, &sCylinderInitBlasts);
 
         if (this->actor.params == TW_FIRE_BLAST || this->actor.params == TW_FIRE_BLAST_GROUND) {
             this->actionFunc = BossTw_BlastFire;
-            this->collider.info.toucher.effect = 1;
+            this->collider.elem.atDmgInfo.hitSpecialEffect = HIT_SPECIAL_EFFECT_FIRE;
         } else if (this->actor.params == TW_ICE_BLAST || this->actor.params == TW_ICE_BLAST_GROUND) {
             this->actionFunc = BossTw_BlastIce;
         } else if (this->actor.params >= TW_DEATHBALL_KOTAKE) {
@@ -484,7 +512,7 @@ void BossTw_Init(Actor* thisx, PlayState* play2) {
     }
 
     Actor_SetScale(&this->actor, 2.5 * 0.01f);
-    this->actor.colChkInfo.mass = 255;
+    this->actor.colChkInfo.mass = MASS_IMMOVABLE;
     this->actor.colChkInfo.health = 0;
     Collider_InitCylinder(play, &this->collider);
 
@@ -513,7 +541,7 @@ void BossTw_Init(Actor* thisx, PlayState* play2) {
         this->actor.naviEnemyId = NAVI_ENEMY_TWINROVA_KOTAKE;
         SkelAnime_InitFlex(play, &this->skelAnime, &gTwinrovaKotakeSkel, &gTwinrovaKotakeKoumeFlyAnim, NULL, NULL, 0);
 
-        if (GET_EVENTCHKINF(EVENTCHKINF_75)) {
+        if (GET_EVENTCHKINF(EVENTCHKINF_BEGAN_TWINROVA_BATTLE)) {
             // began twinrova battle
             BossTw_SetupFlyTo(this, play);
             this->actor.world.pos.x = -600.0f;
@@ -531,7 +559,7 @@ void BossTw_Init(Actor* thisx, PlayState* play2) {
         this->actor.naviEnemyId = NAVI_ENEMY_TWINROVA_KOUME;
         SkelAnime_InitFlex(play, &this->skelAnime, &gTwinrovaKoumeSkel, &gTwinrovaKotakeKoumeFlyAnim, NULL, NULL, 0);
 
-        if (GET_EVENTCHKINF(EVENTCHKINF_75)) {
+        if (GET_EVENTCHKINF(EVENTCHKINF_BEGAN_TWINROVA_BATTLE)) {
             // began twinrova battle
             BossTw_SetupFlyTo(this, play);
             this->actor.world.pos.x = 600.0f;
@@ -553,7 +581,7 @@ void BossTw_Init(Actor* thisx, PlayState* play2) {
         SkelAnime_InitFlex(play, &this->skelAnime, &gTwinrovaSkel, &gTwinrovaTPoseAnim, NULL, NULL, 0);
         Animation_MorphToLoop(&this->skelAnime, &gTwinrovaTPoseAnim, -3.0f);
 
-        if (GET_EVENTCHKINF(EVENTCHKINF_75)) {
+        if (GET_EVENTCHKINF(EVENTCHKINF_BEGAN_TWINROVA_BATTLE)) {
             // began twinrova battle
             BossTw_SetupWait(this, play);
         } else {
@@ -646,7 +674,7 @@ void BossTw_SetupFlyTo(BossTw* this, PlayState* play) {
     BossTw* otherTw = (BossTw*)this->actor.parent;
 
     this->unk_5F8 = 1;
-    this->actor.flags |= ACTOR_FLAG_0;
+    this->actor.flags |= ACTOR_FLAG_ATTENTION_ENABLED;
     this->actionFunc = BossTw_FlyTo;
     this->rotateSpeed = 0.0f;
     Animation_MorphToLoop(&this->skelAnime, &gTwinrovaKotakeKoumeFlyAnim, -10.0f);
@@ -790,7 +818,6 @@ s32 BossTw_BeamHitPlayerCheck(BossTw* this, PlayState* play) {
     Vec3f offset;
     Vec3f beamDistFromPlayer;
     Player* player = GET_PLAYER(play);
-    s16 i;
 
     offset.x = player->actor.world.pos.x - this->beamOrigin.x;
     offset.y = player->actor.world.pos.y - this->beamOrigin.y;
@@ -805,13 +832,15 @@ s32 BossTw_BeamHitPlayerCheck(BossTw* this, PlayState* play) {
         if (sTwinrovaPtr->timers[2] == 0) {
             sTwinrovaPtr->timers[2] = 150;
             this->beamDist = sqrtf(SQ(offset.x) + SQ(offset.y) + SQ(offset.z));
-            func_8002F6D4(play, &this->actor, 3.0f, this->actor.shape.rot.y, 0.0f, 0x20);
+            Actor_SetPlayerKnockbackLarge(play, &this->actor, 3.0f, this->actor.shape.rot.y, 0.0f, 0x20);
 
             if (this->actor.params == TW_KOTAKE) {
                 if (sFreezeState == 0) {
                     sFreezeState = 1;
                 }
             } else if (!player->bodyIsBurning) {
+                s16 i;
+
                 for (i = 0; i < PLAYER_BODYPART_MAX; i++) {
                     player->bodyFlameTimers[i] = Rand_S16Offset(0, 200);
                 }
@@ -837,7 +866,7 @@ s32 BossTw_CheckBeamReflection(BossTw* this, PlayState* play) {
     Vec3f vec;
     Player* player = GET_PLAYER(play);
 
-    if (player->stateFlags1 & PLAYER_STATE1_22 &&
+    if (player->stateFlags1 & PLAYER_STATE1_SHIELDING &&
         (s16)(player->actor.shape.rot.y - this->actor.shape.rot.y + 0x8000) < 0x2000 &&
         (s16)(player->actor.shape.rot.y - this->actor.shape.rot.y + 0x8000) > -0x2000) {
         // player is shielding and facing angles are less than 45 degrees in either direction
@@ -979,7 +1008,7 @@ void BossTw_ShootBeam(BossTw* this, PlayState* play) {
 
     if (this->timers[1] != 0) {
         Math_ApproachS(&this->actor.shape.rot.y, this->actor.yawTowardsPlayer, 5, this->rotateSpeed);
-        if ((player->stateFlags1 & PLAYER_STATE1_22) &&
+        if ((player->stateFlags1 & PLAYER_STATE1_SHIELDING) &&
             ((s16)((player->actor.shape.rot.y - this->actor.shape.rot.y) + 0x8000) < 0x2000) &&
             ((s16)((player->actor.shape.rot.y - this->actor.shape.rot.y) + 0x8000) > -0x2000)) {
             Math_ApproachF(&this->targetPos.x, player->bodyPartsPos[PLAYER_BODYPART_R_HAND].x, 1.0f, 400.0f);
@@ -1133,11 +1162,9 @@ void BossTw_ShootBeam(BossTw* this, PlayState* play) {
                                              &this->actor.projectedW);
 
                 if (this->actor.params == TW_KOUME) {
-                    Audio_PlaySfxGeneral(NA_SE_EN_TWINROBA_SHOOT_FIRE - SFX_FLAG, &this->unk_54C, 4,
-                                         &gSfxDefaultFreqAndVolScale, &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
+                    SFX_PLAY_AT_POS(&this->unk_54C, NA_SE_EN_TWINROBA_SHOOT_FIRE - SFX_FLAG);
                 } else {
-                    Audio_PlaySfxGeneral(NA_SE_EN_TWINROBA_SHOOT_FREEZE - SFX_FLAG, &this->unk_54C, 4,
-                                         &gSfxDefaultFreqAndVolScale, &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
+                    SFX_PLAY_AT_POS(&this->unk_54C, NA_SE_EN_TWINROBA_SHOOT_FREEZE - SFX_FLAG);
                 }
                 break;
 
@@ -1163,15 +1190,11 @@ void BossTw_ShootBeam(BossTw* this, PlayState* play) {
                                              &this->actor.projectedW);
 
                 if (this->actor.params == TW_KOUME) {
-                    Audio_PlaySfxGeneral(NA_SE_EN_TWINROBA_SHOOT_FIRE - SFX_FLAG, &this->unk_558, 4U,
-                                         &gSfxDefaultFreqAndVolScale, &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
-                    Audio_PlaySfxGeneral(NA_SE_EN_TWINROBA_REFL_FIRE - SFX_FLAG, &this->unk_558, 4,
-                                         &gSfxDefaultFreqAndVolScale, &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
+                    SFX_PLAY_AT_POS(&this->unk_558, NA_SE_EN_TWINROBA_SHOOT_FIRE - SFX_FLAG);
+                    SFX_PLAY_AT_POS(&this->unk_558, NA_SE_EN_TWINROBA_REFL_FIRE - SFX_FLAG);
                 } else {
-                    Audio_PlaySfxGeneral(NA_SE_EN_TWINROBA_SHOOT_FREEZE - SFX_FLAG, &this->unk_558, 4,
-                                         &gSfxDefaultFreqAndVolScale, &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
-                    Audio_PlaySfxGeneral(NA_SE_EN_TWINROBA_REFL_FREEZE - SFX_FLAG, &this->unk_558, 4,
-                                         &gSfxDefaultFreqAndVolScale, &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
+                    SFX_PLAY_AT_POS(&this->unk_558, NA_SE_EN_TWINROBA_SHOOT_FREEZE - SFX_FLAG);
+                    SFX_PLAY_AT_POS(&this->unk_558, NA_SE_EN_TWINROBA_REFL_FREEZE - SFX_FLAG);
                 }
                 break;
         }
@@ -1437,7 +1460,7 @@ void BossTw_SetupSpin(BossTw* this, PlayState* play) {
 
 void BossTw_Spin(BossTw* this, PlayState* play) {
     if (this->timers[0] != 0) {
-        this->collider.base.colType = COLTYPE_METAL;
+        this->collider.base.colMaterial = COL_MATERIAL_METAL;
         this->actor.shape.rot.y -= 0x3000;
 
         if ((this->timers[0] % 4) == 0) {
@@ -1469,7 +1492,7 @@ void BossTw_SetupWait(BossTw* this, PlayState* play) {
     this->actionFunc = BossTw_Wait;
     this->visible = false;
     this->actor.world.pos.y = -2000.0f;
-    this->actor.flags &= ~ACTOR_FLAG_0;
+    this->actor.flags &= ~ACTOR_FLAG_ATTENTION_ENABLED;
 }
 
 void BossTw_Wait(BossTw* this, PlayState* play) {
@@ -1631,7 +1654,7 @@ void BossTw_TwinrovaMergeCS(BossTw* this, PlayState* play) {
 
                     this->csState1 = 1;
                     this->visible = true;
-                    this->actor.flags |= ACTOR_FLAG_0;
+                    this->actor.flags |= ACTOR_FLAG_ATTENTION_ENABLED;
                     this->actor.shape.rot.y = 0;
                     BossTw_SetupWait(sKotakePtr, play);
                     BossTw_SetupWait(sKoumePtr, play);
@@ -1752,11 +1775,11 @@ void BossTw_SetupCSWait(BossTw* this, PlayState* play) {
     this->actionFunc = BossTw_CSWait;
     this->visible = false;
     this->actor.world.pos.y = -2000.0f;
-    this->actor.flags &= ~ACTOR_FLAG_0;
+    this->actor.flags &= ~ACTOR_FLAG_ATTENTION_ENABLED;
 }
 
 /**
- * Do nothing while waiting for the inital cutscene to start
+ * Do nothing while waiting for the initial cutscene to start
  */
 void BossTw_CSWait(BossTw* this, PlayState* play) {
 }
@@ -1765,7 +1788,7 @@ void BossTw_TwinrovaSetupIntroCS(BossTw* this, PlayState* play) {
     this->actionFunc = BossTw_TwinrovaIntroCS;
     this->visible = false;
     this->actor.world.pos.y = -2000.0f;
-    this->actor.flags &= ~ACTOR_FLAG_0;
+    this->actor.flags &= ~ACTOR_FLAG_ATTENTION_ENABLED;
 }
 
 void BossTw_TwinrovaIntroCS(BossTw* this, PlayState* play) {
@@ -2216,7 +2239,7 @@ void BossTw_TwinrovaIntroCS(BossTw* this, PlayState* play) {
                 play->envCtx.lightBlend = 0.0f;
                 TitleCard_InitBossName(play, &play->actorCtx.titleCtx, SEGMENTED_TO_VIRTUAL(gTwinrovaTitleCardTex), 160,
                                        180, 128, 40);
-                SET_EVENTCHKINF(EVENTCHKINF_75);
+                SET_EVENTCHKINF(EVENTCHKINF_BEGAN_TWINROVA_BATTLE);
                 SEQCMD_PLAY_SEQUENCE(SEQ_PLAYER_BGM_MAIN, 0, 0, NA_BGM_BOSS);
             }
 
@@ -2371,7 +2394,7 @@ void BossTw_TwinrovaSetupDeathCS(BossTw* this, PlayState* play) {
     this->actionFunc = BossTw_TwinrovaDeathCS;
     Animation_MorphToLoop(&this->skelAnime, &gTwinrovaDamageAnim, -3.0f);
     this->actor.world.rot.y = this->actor.shape.rot.y;
-    this->actor.flags &= ~ACTOR_FLAG_0;
+    this->actor.flags &= ~ACTOR_FLAG_ATTENTION_ENABLED;
     this->csState2 = this->csState1 = 0;
     this->work[CS_TIMER_1] = this->work[CS_TIMER_2] = 0;
     this->work[INVINC_TIMER] = 10000;
@@ -2669,7 +2692,7 @@ void BossTw_TwinrovaDeathCS(BossTw* this, PlayState* play) {
                                        this->actor.world.pos.y, this->actor.world.pos.z, 0, 0, 0, TW_DEATHBALL_KOUME);
                     Actor_SpawnAsChild(&play->actorCtx, &this->actor, play, ACTOR_BOSS_TW, this->actor.world.pos.x,
                                        this->actor.world.pos.y, this->actor.world.pos.z, 0, 0, 0, TW_DEATHBALL_KOTAKE);
-                    this->actor.flags &= ~ACTOR_FLAG_0;
+                    this->actor.flags &= ~ACTOR_FLAG_ATTENTION_ENABLED;
                 }
             }
             Actor_SetScale(&this->actor, this->actor.scale.x);
@@ -2722,7 +2745,7 @@ void BossTw_TwinrovaDeathCS(BossTw* this, PlayState* play) {
                 sKoumePtr->work[YAW_TGT] = sKotakePtr->work[YAW_TGT] = sKoumePtr->actor.shape.rot.x =
                     sKotakePtr->actor.shape.rot.x = sKoumePtr->actor.shape.rot.y = sKotakePtr->actor.shape.rot.y = 0;
                 Player_SetCsActionWithHaltedActors(play, &sKoumePtr->actor, PLAYER_CSACTION_1);
-                sKoumePtr->actor.flags |= ACTOR_FLAG_0;
+                sKoumePtr->actor.flags |= ACTOR_FLAG_ATTENTION_ENABLED;
             }
             break;
         case 2:
@@ -2847,7 +2870,7 @@ void BossTw_Update(Actor* thisx, PlayState* play) {
     s16 i;
     s32 pad;
 
-    this->collider.base.colType = COLTYPE_HIT3;
+    this->collider.base.colMaterial = COL_MATERIAL_HIT3;
     Math_ApproachF(&this->fogR, play->lightCtx.fogColor[0], 1.0f, 10.0f);
     Math_ApproachF(&this->fogG, play->lightCtx.fogColor[1], 1.0f, 10.0f);
     Math_ApproachF(&this->fogB, play->lightCtx.fogColor[2], 1.0f, 10.0f);
@@ -2973,9 +2996,9 @@ void BossTw_TwinrovaUpdate(Actor* thisx, PlayState* play2) {
     BossTw* this = (BossTw*)thisx;
     Player* player = GET_PLAYER(play);
 
-    this->actor.flags &= ~ACTOR_FLAG_10;
+    this->actor.flags &= ~ACTOR_FLAG_HOOKSHOT_PULLS_PLAYER;
     this->unk_5F8 = 0;
-    this->collider.base.colType = COLTYPE_HIT3;
+    this->collider.base.colMaterial = COL_MATERIAL_HIT3;
 
     Math_ApproachF(&this->fogR, play->lightCtx.fogColor[0], 1.0f, 10.0f);
     Math_ApproachF(&this->fogG, play->lightCtx.fogColor[1], 1.0f, 10.0f);
@@ -3093,19 +3116,19 @@ void BossTw_TwinrovaUpdate(Actor* thisx, PlayState* play2) {
                 BossTw_TwinrovaDamage(this, play, 0);
                 Actor_PlaySfx(&this->actor, NA_SE_EN_TWINROBA_YOUNG_DAMAGE);
             } else if (this->collider.base.acFlags & AC_HIT) {
-                ColliderInfo* info = this->collider.info.acHitInfo;
+                ColliderElement* acHitElem = this->collider.elem.acHitElem;
 
                 this->collider.base.acFlags &= ~AC_HIT;
-                if (info->toucher.dmgFlags & (DMG_SLINGSHOT | DMG_ARROW)) {}
+                if (acHitElem->atDmgInfo.dmgFlags & (DMG_SLINGSHOT | DMG_ARROW)) {}
             }
         } else if (this->collider.base.acFlags & AC_HIT) {
             u8 damage;
             u8 swordDamage;
-            ColliderInfo* info = this->collider.info.acHitInfo;
+            ColliderElement* acHitElem = this->collider.elem.acHitElem;
 
             this->collider.base.acFlags &= ~AC_HIT;
             swordDamage = false;
-            damage = CollisionCheck_GetSwordDamage(info->toucher.dmgFlags);
+            damage = CollisionCheck_GetSwordDamage(acHitElem->atDmgInfo.dmgFlags);
 
             if (damage == 0) {
                 damage = 2;
@@ -3113,7 +3136,7 @@ void BossTw_TwinrovaUpdate(Actor* thisx, PlayState* play2) {
                 swordDamage = true;
             }
 
-            if (!(info->toucher.dmgFlags & DMG_HOOKSHOT)) {
+            if (!(acHitElem->atDmgInfo.dmgFlags & DMG_HOOKSHOT)) {
                 if (((s8)this->actor.colChkInfo.health < 3) && !swordDamage) {
                     damage = 0;
                 }
@@ -3124,7 +3147,7 @@ void BossTw_TwinrovaUpdate(Actor* thisx, PlayState* play2) {
     }
 
     CollisionCheck_SetAC(play, &play->colChkCtx, &this->collider.base);
-    osSyncPrintf("OooooooooooooooooooooooooooooooooCC\n");
+    PRINTF("OooooooooooooooooooooooooooooooooCC\n");
     CollisionCheck_SetOC(play, &play->colChkCtx, &this->collider.base);
 
     play->envCtx.lightBlendOverride = LIGHT_BLEND_OVERRIDE_FULL_CONTROL;
@@ -3222,8 +3245,7 @@ void BossTw_PostLimbDraw(PlayState* play, s32 limbIndex, Gfx** dList, Vec3s* rot
             Matrix_MultVec3f(&D_8094A950, &this->crownPos);
 
             if (this->unk_5F8 != 0) {
-                gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 6190),
-                          G_MTX_LOAD | G_MTX_MODELVIEW | G_MTX_NOPUSH);
+                MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 6190);
                 if (this->actor.params == TW_KOTAKE) {
                     gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaKotakeIceHairDL));
                 } else {
@@ -3240,8 +3262,7 @@ void BossTw_PostLimbDraw(PlayState* play, s32 limbIndex, Gfx** dList, Vec3s* rot
             Matrix_MultVec3f(&D_8094A95C[4], &this->scepterFlamePos[4]);
 
             if (this->scepterAlpha > 0.0f) {
-                gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 6221),
-                          G_MTX_LOAD | G_MTX_MODELVIEW | G_MTX_NOPUSH);
+                MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 6221);
                 if (this->actor.params == TW_KOTAKE) {
                     gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 255, 225, 255, (s16)this->scepterAlpha);
                     gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaKotakeIceBroomHeadDL));
@@ -3269,8 +3290,7 @@ void func_80941BC0(BossTw* this, PlayState* play) {
     Gfx_SetupDL_25Xlu(play->state.gfxCtx);
     Matrix_Translate(this->groundBlastPos2.x, this->groundBlastPos2.y, this->groundBlastPos2.z, MTXMODE_NEW);
     Matrix_Scale(this->workf[UNK_F12], this->workf[UNK_F12], this->workf[UNK_F12], MTXMODE_APPLY);
-    gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 6358),
-              G_MTX_LOAD | G_MTX_MODELVIEW | G_MTX_NOPUSH);
+    MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 6358);
     gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 255, 255, 255, (s16)this->workf[UNK_F11]);
     gDPSetEnvColor(POLY_XLU_DISP++, 0, 40, 30, 80);
     gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaIcePoolDL));
@@ -3281,22 +3301,17 @@ void func_80941BC0(BossTw* this, PlayState* play) {
                                 (u32)this->workf[UNK_F16] & 0x3F, (this->work[CS_TIMER_2] * 4) & 0x3F, 0x10, 0x10));
     Matrix_Push();
     Matrix_RotateY(this->workf[UNK_F15], MTXMODE_APPLY);
-    gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 6423),
-              G_MTX_LOAD | G_MTX_MODELVIEW | G_MTX_NOPUSH);
+    MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 6423);
     gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaIcePoolShineDL));
     Matrix_Pop();
-    gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 6427),
-              G_MTX_LOAD | G_MTX_MODELVIEW | G_MTX_NOPUSH);
+    MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 6427);
     gSPSegment(POLY_XLU_DISP++, 0xD,
                Gfx_TwoTexScroll(play->state.gfxCtx, G_TX_RENDERTILE, this->work[CS_TIMER_2] & 0x7F,
                                 (this->work[CS_TIMER_2] * 8) & 0xFF, 0x20, 0x40, 1,
                                 (-this->work[CS_TIMER_2] * 2) & 0x3F, 0, 0x10, 0x10));
     gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 195, 225, 235, (s16)this->workf[UNK_F9]);
     gDPSetEnvColor(POLY_XLU_DISP++, 255, 255, 255, 128);
-    gDPSetRenderMode(POLY_XLU_DISP++,
-                     Z_CMP | IM_RD | CVG_DST_SAVE | ZMODE_DEC | FORCE_BL |
-                         GBL_c1(G_BL_CLR_FOG, G_BL_A_SHADE, G_BL_CLR_IN, G_BL_1MA),
-                     G_RM_ZB_OVL_SURF2);
+    gDPSetRenderMode(POLY_XLU_DISP++, G_RM_FOG_SHADE_A, G_RM_ZB_OVL_SURF2);
     gSPSetGeometryMode(POLY_XLU_DISP++, G_CULL_BACK | G_FOG);
     gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaEffectHaloDL));
     Matrix_Pop();
@@ -3317,16 +3332,14 @@ void func_80942180(BossTw* this, PlayState* play) {
     gSPSegment(POLY_XLU_DISP++, 8,
                Gfx_TwoTexScroll(play->state.gfxCtx, G_TX_RENDERTILE, (-this->work[CS_TIMER_1]) & 0x7F, 0, 0x20, 0x20, 1,
                                 (this->work[CS_TIMER_1] * 2) & 0x7F, 0, 0x20, 0x20));
-    gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 6497),
-              G_MTX_LOAD | G_MTX_MODELVIEW | G_MTX_NOPUSH);
+    MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 6497);
     gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 100, 40, 00, (s16)this->workf[KM_GRND_CRTR_A]);
     gDPPipeSync(POLY_XLU_DISP++);
     gDPSetEnvColor(POLY_XLU_DISP++, 255, 245, 255, 128);
     gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaFirePoolDL));
 
     Matrix_ReplaceRotation(&play->billboardMtxF);
-    gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 6514),
-              G_MTX_LOAD | G_MTX_MODELVIEW | G_MTX_NOPUSH);
+    MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 6514);
     gSPSegment(POLY_XLU_DISP++, 8,
                Gfx_TwoTexScroll(play->state.gfxCtx, G_TX_RENDERTILE, this->work[CS_TIMER_1] & 0x7F,
                                 (-this->work[CS_TIMER_1] * 6) & 0xFF, 0x20, 0x40, 1,
@@ -3343,8 +3356,7 @@ void func_80942180(BossTw* this, PlayState* play) {
     gDPPipeSync(POLY_XLU_DISP++);
     gDPSetEnvColor(POLY_XLU_DISP++, 200, 235, 240, 128);
     Matrix_Scale(this->workf[KM_GD_FLM_SCL], this->workf[KM_GD_FLM_SCL], this->workf[KM_GD_FLM_SCL], MTXMODE_APPLY);
-    gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 6575),
-              G_MTX_LOAD | G_MTX_MODELVIEW | G_MTX_NOPUSH);
+    MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 6575);
     gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaBigFlameDL));
 
     Matrix_Pop();
@@ -3366,8 +3378,7 @@ void func_809426F0(BossTw* this, PlayState* play) {
     Matrix_Scale(this->spawnPortalScale / 2000.0f, this->spawnPortalScale / 2000.0f, this->spawnPortalScale / 2000.0f,
                  MTXMODE_APPLY);
     Matrix_RotateZ(this->portalRotation, MTXMODE_APPLY);
-    gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 6614),
-              G_MTX_LOAD | G_MTX_MODELVIEW | G_MTX_NOPUSH);
+    MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 6614);
 
     if (this->actor.params == TW_KOTAKE) {
         gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 135, 175, 165, (s16)this->spawnPortalAlpha);
@@ -3398,8 +3409,7 @@ void func_809426F0(BossTw* this, PlayState* play) {
                                     (u8)((-this->work[CS_TIMER_2] * 15) + (i * 50)), 0x20, 0x40, 1, 0, 0, 0x20, 0x20));
         Matrix_Scale(0.4f, 0.4f, 0.4f, MTXMODE_APPLY);
         Matrix_ReplaceRotation(&play->billboardMtxF);
-        gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 6751),
-                  G_MTX_LOAD | G_MTX_MODELVIEW | G_MTX_NOPUSH);
+        MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 6751);
         gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaFireDL));
         Matrix_Pop();
     }
@@ -3413,45 +3423,46 @@ void func_80942C70(Actor* thisx, PlayState* play) {
 
     OPEN_DISPS(play->state.gfxCtx, "../z_boss_tw.c", 6765);
 
-    if (this->beamDist != 0.0f) {
-        Matrix_Push();
-        gSPSegment(POLY_XLU_DISP++, 0xC,
-                   Gfx_TexScroll(play->state.gfxCtx, 0, (u8)(this->work[CS_TIMER_1] * -0xF), 0x20, 0x40));
-        alpha = this->beamScale * 100.0f * 255.0f;
-
-        if (this->actor.params == TW_KOUME) {
-            gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 255, 255, 60, alpha);
-            gDPSetEnvColor(POLY_XLU_DISP++, 255, 0, 0, 128);
-        } else {
-            gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 255, 255, 255, alpha);
-            gDPSetEnvColor(POLY_XLU_DISP++, 100, 100, 255, 128);
-        }
-
-        Matrix_Translate(this->beamOrigin.x, this->beamOrigin.y, this->beamOrigin.z, MTXMODE_NEW);
-        Matrix_RotateY(this->beamYaw, MTXMODE_APPLY);
-        Matrix_RotateX(this->beamPitch, MTXMODE_APPLY);
-        Matrix_RotateZ(this->beamRoll, MTXMODE_APPLY);
-        Matrix_Scale(this->beamScale, this->beamScale, (this->beamDist * 0.01f * 98.0f) / 20000.0f, MTXMODE_APPLY);
-        gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 6846),
-                  G_MTX_LOAD | G_MTX_MODELVIEW | G_MTX_NOPUSH);
-        gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaBeamDL));
-
-        if (this->beamReflectionDist > 10.0f) {
-            Matrix_Translate(this->beamReflectionOrigin.x, this->beamReflectionOrigin.y, this->beamReflectionOrigin.z,
-                             MTXMODE_NEW);
-            Matrix_RotateY(this->beamReflectionYaw, MTXMODE_APPLY);
-            Matrix_RotateX(this->beamReflectionPitch, MTXMODE_APPLY);
-            Matrix_RotateZ(this->beamRoll, MTXMODE_APPLY);
-            Matrix_Scale(this->beamScale, this->beamScale, (this->beamReflectionDist * 0.01f * 100.0f) / 20000.0f,
-                         MTXMODE_APPLY);
-            gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 6870),
-                      G_MTX_LOAD | G_MTX_MODELVIEW | G_MTX_NOPUSH);
-            gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaBeamDL));
-        }
-
-        Matrix_Pop();
+    if (this->beamDist == 0.0f) {
+        goto close_disps;
     }
 
+    Matrix_Push();
+    gSPSegment(POLY_XLU_DISP++, 0xC,
+               Gfx_TexScroll(play->state.gfxCtx, 0, (u8)(this->work[CS_TIMER_1] * -0xF), 0x20, 0x40));
+    alpha = this->beamScale * 100.0f * 255.0f;
+
+    if (this->actor.params == TW_KOUME) {
+        gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 255, 255, 60, alpha);
+        gDPSetEnvColor(POLY_XLU_DISP++, 255, 0, 0, 128);
+    } else {
+        gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 255, 255, 255, alpha);
+        gDPSetEnvColor(POLY_XLU_DISP++, 100, 100, 255, 128);
+    }
+
+    Matrix_Translate(this->beamOrigin.x, this->beamOrigin.y, this->beamOrigin.z, MTXMODE_NEW);
+    Matrix_RotateY(this->beamYaw, MTXMODE_APPLY);
+    Matrix_RotateX(this->beamPitch, MTXMODE_APPLY);
+    Matrix_RotateZ(this->beamRoll, MTXMODE_APPLY);
+    Matrix_Scale(this->beamScale, this->beamScale, (this->beamDist * 0.01f * 98.0f) / 20000.0f, MTXMODE_APPLY);
+    MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 6846);
+    gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaBeamDL));
+
+    if (this->beamReflectionDist > 10.0f) {
+        Matrix_Translate(this->beamReflectionOrigin.x, this->beamReflectionOrigin.y, this->beamReflectionOrigin.z,
+                         MTXMODE_NEW);
+        Matrix_RotateY(this->beamReflectionYaw, MTXMODE_APPLY);
+        Matrix_RotateX(this->beamReflectionPitch, MTXMODE_APPLY);
+        Matrix_RotateZ(this->beamRoll, MTXMODE_APPLY);
+        Matrix_Scale(this->beamScale, this->beamScale, (this->beamReflectionDist * 0.01f * 100.0f) / 20000.0f,
+                     MTXMODE_APPLY);
+        MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 6870);
+        gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaBeamDL));
+    }
+
+    Matrix_Pop();
+
+close_disps:
     CLOSE_DISPS(play->state.gfxCtx, "../z_boss_tw.c", 6878);
 }
 
@@ -3464,16 +3475,14 @@ void func_80943028(Actor* thisx, PlayState* play) {
     Matrix_Translate(this->actor.world.pos.x, this->actor.world.pos.y + 57.0f, this->actor.world.pos.z, MTXMODE_NEW);
     Matrix_Scale(this->workf[UNK_F17], this->workf[UNK_F17], this->workf[UNK_F17], MTXMODE_APPLY);
     gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 255, 255, 255, 255);
-    gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 6908),
-              G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+    MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 6908);
     gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaHaloDL));
     Gfx_SetupDL_44Xlu(play->state.gfxCtx);
     gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 0, 0, 0, 200);
     Matrix_Translate(this->actor.world.pos.x, 240.0f, this->actor.world.pos.z, MTXMODE_NEW);
     Matrix_Scale((this->actor.scale.x * 4000.0f) / 100.0f, 1.0f, (this->actor.scale.x * 4000.0f) / 100.0f,
                  MTXMODE_APPLY);
-    gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 6926),
-              G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+    MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 6926);
     gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gCircleShadowDL));
     Matrix_Pop();
 
@@ -3533,9 +3542,10 @@ void BossTw_Draw(Actor* thisx, PlayState* play2) {
     }
 
     if (this->actor.params == TW_KOTAKE) {
+        Vec3f diff;
+
         if (this->workf[UNK_F9] > 0.0f) {
             if (this->workf[UNK_F11] > 0.0f) {
-                Vec3f diff;
                 diff.x = this->groundBlastPos2.x - player->actor.world.pos.x;
                 diff.y = this->groundBlastPos2.y - player->actor.world.pos.y;
                 diff.z = this->groundBlastPos2.z - player->actor.world.pos.z;
@@ -3665,8 +3675,7 @@ void BossTw_TwinrovaPostLimbDraw(PlayState* play, s32 limbIndex, Gfx** dList, Ve
         case TWINROVA_LIMB_BROOM_FIRE_TRAIL:
             Matrix_Push();
             Matrix_Scale(this->workf[UNK_F12], this->workf[UNK_F12], this->workf[UNK_F12], MTXMODE_APPLY);
-            gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 7295),
-                      G_MTX_LOAD | G_MTX_MODELVIEW | G_MTX_NOPUSH);
+            MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 7295);
             Matrix_Pop();
             gSPDisplayList(POLY_XLU_DISP++, *dList);
             break;
@@ -3716,8 +3725,7 @@ void BossTw_ShieldChargeDraw(BossTw* this, PlayState* play) {
         if (temp_t0 != 0) {
             Matrix_Mult(&player->shieldMf, MTXMODE_NEW);
             Matrix_RotateX(M_PI / 2.0f, MTXMODE_APPLY);
-            gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 7362),
-                      G_MTX_LOAD | G_MTX_MODELVIEW | G_MTX_NOPUSH);
+            MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 7362);
             temp_a0 = (Math_SinS(this->work[CS_TIMER_1] * 2730 * temp_t0) * D_8094C854 * 0.5f) + (D_8094C854 * 0.5f);
             if (sShieldFireCharge != 0) {
                 gDPSetEnvColor(POLY_XLU_DISP++, 255, 245, 255, temp_a0);
@@ -3757,8 +3765,7 @@ void BossTw_ShieldChargeDraw(BossTw* this, PlayState* play) {
         Matrix_Mult(&player->shieldMf, MTXMODE_NEW);
         Matrix_RotateX(M_PI / 2.0f, MTXMODE_APPLY);
         Matrix_Scale(scale, scale, scale, MTXMODE_APPLY);
-        gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 7486),
-                  G_MTX_LOAD | G_MTX_MODELVIEW | G_MTX_NOPUSH);
+        MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 7486);
         if (sShieldFireCharge != 0) {
             gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 255, 220, 20, (s16)D_8094C858);
             gDPSetEnvColor(POLY_XLU_DISP++, 255, 0, 20, 110);
@@ -3793,29 +3800,25 @@ void BossTw_SpawnPortalDraw(BossTw* this, PlayState* play) {
     Matrix_Translate(0.0f, 232.0f, -600.0f, MTXMODE_NEW);
     Matrix_Scale(this->spawnPortalScale, this->spawnPortalScale, this->spawnPortalScale, MTXMODE_APPLY);
     gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 0, 0, 0, (s16)this->spawnPortalAlpha);
-    gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 7582),
-              G_MTX_LOAD | G_MTX_MODELVIEW | G_MTX_NOPUSH);
+    MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 7582);
     gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaSpawnPortalShadowDL));
 
     gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 135, 175, 165, (s16)this->spawnPortalAlpha);
     Matrix_Translate(0.0f, 2.0f, 0.0f, MTXMODE_APPLY);
     Matrix_RotateX(M_PI / 2.0f, MTXMODE_APPLY);
-    gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 7596),
-              G_MTX_LOAD | G_MTX_MODELVIEW | G_MTX_NOPUSH);
+    MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 7596);
     gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaKotakeMagicSigilDL));
 
     Matrix_Translate(0.0f, 232.0f, 600.0f, MTXMODE_NEW);
     Matrix_Scale(this->spawnPortalScale, this->spawnPortalScale, this->spawnPortalScale, MTXMODE_APPLY);
     gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 0, 0, 0, (s16)this->spawnPortalAlpha);
-    gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 7617),
-              G_MTX_LOAD | G_MTX_MODELVIEW | G_MTX_NOPUSH);
+    MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 7617);
     gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaSpawnPortalShadowDL));
 
     gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 255, 255, 0, (s16)this->spawnPortalAlpha);
     Matrix_Translate(0.0f, 2.0f, 0.0f, MTXMODE_APPLY);
     Matrix_RotateX(M_PI / 2.0f, MTXMODE_APPLY);
-    gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 7631),
-              G_MTX_LOAD | G_MTX_MODELVIEW | G_MTX_NOPUSH);
+    MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 7631);
     gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaKoumeMagicSigilDL));
 
     Matrix_Pop();
@@ -3834,8 +3837,7 @@ void func_80944C50(BossTw* this, PlayState* play) {
     Matrix_Scale(0.35f, 0.35f, 0.35f, MTXMODE_APPLY);
     Matrix_Push();
     Matrix_Scale(this->workf[UNK_F19], this->workf[UNK_F19], this->workf[UNK_F19], MTXMODE_APPLY);
-    gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 7671),
-              G_MTX_LOAD | G_MTX_MODELVIEW | G_MTX_NOPUSH);
+    MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 7671);
     gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaLightCircleDL));
 
     Matrix_Pop();
@@ -3843,8 +3845,7 @@ void func_80944C50(BossTw* this, PlayState* play) {
                Gfx_TwoTexScroll(play->state.gfxCtx, G_TX_RENDERTILE, -sKoumePtr->work[CS_TIMER_1] * 2, 0, 0x20, 0x20, 1,
                                 -sKoumePtr->work[CS_TIMER_1] * 2, 0, 0x20, 0x40));
     gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 255, 255, 255, (s16)this->workf[UNK_F18] / 2);
-    gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 7694),
-              G_MTX_LOAD | G_MTX_MODELVIEW | G_MTX_NOPUSH);
+    MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 7694);
     gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaLightRaysDL));
 
     gSPSegment(POLY_XLU_DISP++, 8,
@@ -3857,8 +3858,7 @@ void func_80944C50(BossTw* this, PlayState* play) {
     scale = CLAMP_MAX(scale, 1.0f);
 
     Matrix_Scale(scale, 1.0f, scale, MTXMODE_APPLY);
-    gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 7728),
-              G_MTX_LOAD | G_MTX_MODELVIEW | G_MTX_NOPUSH);
+    MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 7728);
     gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaLightPillarDL));
     Matrix_Pop();
 
@@ -4077,7 +4077,7 @@ void BossTw_BlastFire(BossTw* this, PlayState* play) {
                 break;
             }
 
-            {
+            if (1) {
                 f32 sp4C = sGroundBlastType == 2 ? 3.0f : 1.0f;
 
                 Math_ApproachF(&sKoumePtr->workf[UNK_F9], 0.0f, 1.0f, 10.0f * sp4C);
@@ -4231,6 +4231,8 @@ void BossTw_BlastIce(BossTw* this, PlayState* play) {
 
         case TW_ICE_BLAST_GROUND:
             if (this->timers[0] != 0) {
+                s32 pad;
+
                 if (this->timers[0] == 1) {
                     sEnvType = 0;
                 }
@@ -4242,7 +4244,6 @@ void BossTw_BlastIce(BossTw* this, PlayState* play) {
                 Actor_PlaySfx(&this->actor, NA_SE_EV_ICE_FREEZE - SFX_FLAG);
 
                 if (this->timers[0] > (sTwinrovaPtr->actionFunc == BossTw_Wait ? 70 : 20)) {
-                    s32 pad;
                     Vec3f pos;
                     Vec3f velocity;
                     Vec3f accel;
@@ -4320,17 +4321,18 @@ void BossTw_BlastIce(BossTw* this, PlayState* play) {
 s32 BossTw_BlastShieldCheck(BossTw* this, PlayState* play) {
     Player* player = GET_PLAYER(play);
     s32 ret = false;
-    ColliderInfo* info;
 
     if (1) {}
 
     if (this->csState1 == 1) {
         if (this->collider.base.acFlags & AC_HIT) {
+            ColliderElement* acHitElem;
+
             this->collider.base.acFlags &= ~AC_HIT;
             this->collider.base.atFlags &= ~AT_HIT;
-            info = this->collider.info.acHitInfo;
+            acHitElem = this->collider.elem.acHitElem;
 
-            if (info->toucher.dmgFlags & DMG_SHIELD) {
+            if (acHitElem->atDmgInfo.dmgFlags & DMG_SHIELD) {
                 this->work[INVINC_TIMER] = 7;
                 play->envCtx.lightBlend = 1.0f;
                 Rumble_Request(0.0f, 100, 5, 4);
@@ -4459,8 +4461,7 @@ void BossTw_BlastDraw(Actor* thisx, PlayState* play2) {
                 Matrix_Scale(this->actor.scale.x * scaleFactor, this->actor.scale.y * scaleFactor,
                              this->actor.scale.z * scaleFactor, MTXMODE_APPLY);
                 Matrix_ReplaceRotation(&play->billboardMtxF);
-                gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 8865),
-                          G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+                MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 8865);
                 gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaFireDL));
             }
             break;
@@ -4483,8 +4484,7 @@ void BossTw_BlastDraw(Actor* thisx, PlayState* play2) {
                 Matrix_Scale(this->actor.scale.x * scaleFactor, this->actor.scale.y * scaleFactor,
                              this->actor.scale.z * scaleFactor, MTXMODE_APPLY);
                 Matrix_ReplaceRotation(&play->billboardMtxF);
-                gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 9004),
-                          G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+                MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 9004);
                 gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaIceModelDL));
             }
             break;
@@ -4523,8 +4523,7 @@ void BossTw_DrawDeathBall(Actor* thisx, PlayState* play2) {
             Matrix_Scale(this->actor.scale.x * scaleFactor, this->actor.scale.y * scaleFactor,
                          this->actor.scale.z * scaleFactor, MTXMODE_APPLY);
             Matrix_ReplaceRotation(&play->billboardMtxF);
-            gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 9071),
-                      G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+            MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 9071);
             gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaFireDL));
         }
     } else {
@@ -4543,8 +4542,7 @@ void BossTw_DrawDeathBall(Actor* thisx, PlayState* play2) {
             Matrix_Scale(this->actor.scale.x * scaleFactor, this->actor.scale.y * scaleFactor,
                          this->actor.scale.z * scaleFactor, MTXMODE_APPLY);
             Matrix_ReplaceRotation(&play->billboardMtxF);
-            gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_boss_tw.c", 9107),
-                      G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+            MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_boss_tw.c", 9107);
             gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaIceModelDL));
         }
     }
@@ -4565,17 +4563,6 @@ void BossTw_UpdateEffects(PlayState* play) {
     s16 j;
     s16 colorIdx;
     Vec3f off;
-    Vec3f spF4;
-    Vec3f spE8;
-    Vec3f spDC;
-    Vec3f spD0;
-    f32 phi_f22;
-    Vec3f spC0;
-    Vec3f spB4;
-    Vec3f spA8;
-    s16 spA6;
-    f32 phi_f0;
-    Actor* unk44;
 
     for (i = 0; i < BOSS_TW_EFFECT_COUNT; i++) {
         if (eff->type != TWEFF_NONE) {
@@ -4654,6 +4641,10 @@ void BossTw_UpdateEffects(PlayState* play) {
                 off.z = sTwinrovaPtr->actor.world.pos.z - eff->pos.z;
 
                 if (sTwinrovaPtr->actionFunc != BossTw_TwinrovaStun) {
+                    Vec3f spF4;
+                    Vec3f spE8;
+                    Vec3f spDC;
+
                     if ((SQ(off.x) + SQ(off.y) + SQ(off.z)) < SQ(60.0f)) {
                         for (j = 0; j < 50; j++) {
                             spF4.x = sTwinrovaPtr->actor.world.pos.x + Rand_CenteredFloat(35.0f);
@@ -4715,6 +4706,8 @@ void BossTw_UpdateEffects(PlayState* play) {
                     Math_ApproachF(&eff->workf[EFF_DIST], 1000.0f, 1.0f, 10.0f);
                     if (eff->work[EFF_UNKS1] >= 0x10) {
                         if ((eff->work[EFF_UNKS1] == 16) && (sp113 == 0)) {
+                            Vec3f spD0;
+
                             sp113 = 1;
                             spD0 = eff->pos;
                             if (eff->pos.y > 40.0f) {
@@ -4722,8 +4715,7 @@ void BossTw_UpdateEffects(PlayState* play) {
                             } else {
                                 spD0.y = -50.0f;
                             }
-                            sTwinrovaPtr->groundBlastPos.y = phi_f0 = BossTw_GetFloorY(&spD0);
-                            if (phi_f0 >= 0.0f) {
+                            if ((sTwinrovaPtr->groundBlastPos.y = BossTw_GetFloorY(&spD0)) >= 0.0f) {
                                 if (sTwinrovaPtr->groundBlastPos.y != 35.0f) {
                                     sTwinrovaPtr->groundBlastPos.x = eff->pos.x;
                                     sTwinrovaPtr->groundBlastPos.z = eff->pos.z;
@@ -4790,7 +4782,7 @@ void BossTw_UpdateEffects(PlayState* play) {
                 }
             } else if (eff->type == TWEFF_PLYR_FRZ) {
                 if (eff->work[EFF_ARGS] < eff->frame) {
-                    phi_f0 = 1.0f;
+                    f32 phi_f0 = 1.0f;
 
                     if (eff->target != NULL || sGroundBlastType == 1) {
                         phi_f0 *= 3.0f;
@@ -4834,7 +4826,11 @@ void BossTw_UpdateEffects(PlayState* play) {
                     }
 
                     if ((eff->workf[EFF_DIST] > 0.4f) && ((eff->frame & 7) == 0)) {
-                        spA6 = Rand_ZeroFloat(PLAYER_BODYPART_MAX - 0.1f);
+                        Vec3f spC0;
+                        Vec3f spB4;
+                        Vec3f spA8;
+                        s16 spA6 = Rand_ZeroFloat(PLAYER_BODYPART_MAX - 0.1f);
+                        f32 phi_f22;
 
                         if (eff->target == NULL) {
                             spC0.x = player->bodyPartsPos[spA6].x + Rand_CenteredFloat(5.0f);
@@ -4842,7 +4838,8 @@ void BossTw_UpdateEffects(PlayState* play) {
                             spC0.z = player->bodyPartsPos[spA6].z + Rand_CenteredFloat(5.0f);
                             phi_f22 = 10.0f;
                         } else {
-                            unk44 = eff->target;
+                            Actor* unk44 = eff->target;
+
                             spC0.x = unk44->world.pos.x + Rand_CenteredFloat(40.0f);
                             spC0.y = unk44->world.pos.y + Rand_CenteredFloat(40.0f);
                             spC0.z = unk44->world.pos.z + Rand_CenteredFloat(40.0f);
@@ -4899,10 +4896,11 @@ void BossTw_DrawEffects(PlayState* play) {
     s32 pad;
     Player* player = GET_PLAYER(play);
     s16 phi_s4;
-    BossTwEffect* currentEffect = play->specialEffects;
+    BossTwEffect* currentEffect;
     BossTwEffect* effectHead;
     GraphicsContext* gfxCtx = play->state.gfxCtx;
 
+    currentEffect = play->specialEffects;
     effectHead = currentEffect;
 
     OPEN_DISPS(gfxCtx, "../z_boss_tw.c", 9592);
@@ -4921,8 +4919,7 @@ void BossTw_DrawEffects(PlayState* play) {
             Matrix_Translate(currentEffect->pos.x, currentEffect->pos.y, currentEffect->pos.z, MTXMODE_NEW);
             Matrix_ReplaceRotation(&play->billboardMtxF);
             Matrix_Scale(currentEffect->workf[EFF_SCALE], currentEffect->workf[EFF_SCALE], 1.0f, MTXMODE_APPLY);
-            gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(gfxCtx, "../z_boss_tw.c", 9617),
-                      G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+            MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, gfxCtx, "../z_boss_tw.c", 9617);
             gSPDisplayList(POLY_XLU_DISP++, gTwinrovaMagicParticleModelDL);
         }
 
@@ -4946,8 +4943,7 @@ void BossTw_DrawEffects(PlayState* play) {
             Matrix_Translate(currentEffect->pos.x, currentEffect->pos.y, currentEffect->pos.z, MTXMODE_NEW);
             Matrix_ReplaceRotation(&play->billboardMtxF);
             Matrix_Scale(currentEffect->workf[EFF_SCALE], currentEffect->workf[EFF_SCALE], 1.0f, MTXMODE_APPLY);
-            gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(gfxCtx, "../z_boss_tw.c", 9660),
-                      G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+            MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, gfxCtx, "../z_boss_tw.c", 9660);
             gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaIceModelDL));
         }
         currentEffect++;
@@ -4971,8 +4967,7 @@ void BossTw_DrawEffects(PlayState* play) {
             Matrix_Translate(currentEffect->pos.x, currentEffect->pos.y, currentEffect->pos.z, MTXMODE_NEW);
             Matrix_ReplaceRotation(&play->billboardMtxF);
             Matrix_Scale(currentEffect->workf[EFF_SCALE], currentEffect->workf[EFF_SCALE], 1.0f, MTXMODE_APPLY);
-            gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(gfxCtx, "../z_boss_tw.c", 9709),
-                      G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+            MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, gfxCtx, "../z_boss_tw.c", 9709);
             gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaFireDL));
         }
 
@@ -5014,8 +5009,7 @@ void BossTw_DrawEffects(PlayState* play) {
             Matrix_RotateZ(currentEffect->workf[EFF_ROLL], MTXMODE_APPLY);
             Matrix_RotateX(M_PI / 2.0f, MTXMODE_APPLY);
             Matrix_Scale(currentEffect->workf[EFF_SCALE], 1.0f, currentEffect->workf[EFF_SCALE], MTXMODE_APPLY);
-            gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(gfxCtx, "../z_boss_tw.c", 9775),
-                      G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+            MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, gfxCtx, "../z_boss_tw.c", 9775);
             gDPSetRenderMode(POLY_XLU_DISP++, G_RM_PASS, G_RM_AA_ZB_XLU_SURF2);
             gSPClearGeometryMode(POLY_XLU_DISP++, G_CULL_BACK | G_FOG);
             gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaEffectHaloDL));
@@ -5028,10 +5022,10 @@ void BossTw_DrawEffects(PlayState* play) {
     currentEffect = effectHead;
 
     for (i = 0; i < BOSS_TW_EFFECT_COUNT; i++) {
-        Actor* actor;
-        Vec3f off;
-
         if (currentEffect->type == TWEFF_PLYR_FRZ) {
+            Actor* actor;
+            Vec3f off;
+
             if (materialFlag == 0) {
                 gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaIceSurroundingPlayerMaterialDL));
                 gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 195, 225, 235, 255);
@@ -5062,8 +5056,7 @@ void BossTw_DrawEffects(PlayState* play) {
                              currentEffect->workf[EFF_SCALE], MTXMODE_APPLY);
                 Matrix_RotateY(BossTw_RandZeroOne() * M_PI, MTXMODE_APPLY);
                 Matrix_RotateX((BossTw_RandZeroOne() - 0.5f) * M_PI * 0.5f, MTXMODE_APPLY);
-                gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(gfxCtx, "../z_boss_tw.c", 9855),
-                          G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+                MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, gfxCtx, "../z_boss_tw.c", 9855);
                 gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaIceModelDL));
             }
         }
@@ -5091,8 +5084,7 @@ void BossTw_DrawEffects(PlayState* play) {
             Matrix_Translate(currentEffect->pos.x, currentEffect->pos.y, currentEffect->pos.z, MTXMODE_NEW);
             Matrix_ReplaceRotation(&play->billboardMtxF);
             Matrix_Scale(currentEffect->workf[EFF_SCALE], currentEffect->workf[EFF_SCALE], 1.0f, MTXMODE_APPLY);
-            gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(gfxCtx, "../z_boss_tw.c", 9911),
-                      G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+            MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, gfxCtx, "../z_boss_tw.c", 9911);
 
             if (currentEffect->work[EFF_ARGS] == 0) {
                 gSPDisplayList(POLY_XLU_DISP++, SEGMENTED_TO_VIRTUAL(gTwinrovaIceModelDL));
@@ -5204,7 +5196,7 @@ void BossTw_TwinrovaShootBlast(BossTw* this, PlayState* play) {
 
         sEnvType = twMagic->blastType + 1;
 
-        {
+        if (1) {
             Vec3f velocity = { 0.0f, 0.0f, 0.0f };
             Vec3f accel = { 0.0f, 0.0f, 0.0f };
 
@@ -5282,7 +5274,7 @@ void BossTw_TwinrovaStun(BossTw* this, PlayState* play) {
     s16 cloudType;
 
     this->unk_5F8 = 1;
-    this->actor.flags |= ACTOR_FLAG_10;
+    this->actor.flags |= ACTOR_FLAG_HOOKSHOT_PULLS_PLAYER;
 
     cloudType = sTwinrovaBlastType == 0 ? TWEFF_3 : TWEFF_2;
 
@@ -5427,7 +5419,7 @@ void BossTw_TwinrovaSetupSpin(BossTw* this, PlayState* play) {
 void BossTw_TwinrovaSpin(BossTw* this, PlayState* play) {
     SkelAnime_Update(&this->skelAnime);
     if (this->timers[0] != 0) {
-        this->collider.base.colType = COLTYPE_METAL;
+        this->collider.base.colMaterial = COL_MATERIAL_METAL;
         this->actor.shape.rot.y -= 0x3000;
 
         if ((this->timers[0] % 4) == 0) {

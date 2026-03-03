@@ -5,9 +5,23 @@
  */
 
 #include "z_en_bdfire.h"
+#include "overlays/actors/ovl_Boss_Dodongo/z_boss_dodongo.h"
+
+#include "libc64/qrand.h"
+#include "gfx.h"
+#include "gfx_setupdl.h"
+#include "printf.h"
+#include "segmented_address.h"
+#include "sfx.h"
+#include "sys_matrix.h"
+#include "z_lib.h"
+#include "light.h"
+#include "play_state.h"
+#include "player.h"
+
 #include "assets/objects/object_kingdodongo/object_kingdodongo.h"
 
-#define FLAGS (ACTOR_FLAG_4 | ACTOR_FLAG_5)
+#define FLAGS (ACTOR_FLAG_UPDATE_CULLING_DISABLED | ACTOR_FLAG_DRAW_CULLING_DISABLED)
 
 void EnBdfire_Init(Actor* thisx, PlayState* play);
 void EnBdfire_Destroy(Actor* thisx, PlayState* play);
@@ -18,7 +32,7 @@ void EnBdfire_DrawFire(EnBdfire* this, PlayState* play);
 void func_809BC2A4(EnBdfire* this, PlayState* play);
 void func_809BC598(EnBdfire* this, PlayState* play);
 
-ActorInit En_Bdfire_InitVars = {
+ActorProfile En_Bdfire_Profile = {
     /**/ 0,
     /**/ ACTORCAT_ENEMY,
     /**/ FLAGS,
@@ -121,16 +135,13 @@ void func_809BC2A4(EnBdfire* this, PlayState* play) {
 void func_809BC598(EnBdfire* this, PlayState* play) {
     s16 quarterTurn;
     Player* player = GET_PLAYER(play);
-    f32 distToBurn;
     BossDodongo* bossDodongo;
-    s16 i;
 
     bossDodongo = ((BossDodongo*)this->actor.parent);
     this->unk_158 = bossDodongo->unk_1A2;
     quarterTurn = false;
     if (this->actor.params == 0) {
-        Audio_PlaySfxGeneral(NA_SE_EN_DODO_K_FIRE - SFX_FLAG, &this->actor.projectedPos, 4, &gSfxDefaultFreqAndVolScale,
-                             &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
+        SFX_PLAY_AT_POS(&this->actor.projectedPos, NA_SE_EN_DODO_K_FIRE - SFX_FLAG);
     }
     Math_SmoothStepToF(&this->actor.scale.x, this->unk_188, 0.3f, 0.5f, 0.0f);
     Actor_SetScale(&this->actor, this->actor.scale.x);
@@ -164,14 +175,17 @@ void func_809BC598(EnBdfire* this, PlayState* play) {
             return;
         }
     } else if (!player->bodyIsBurning) {
-        distToBurn = (this->actor.scale.x * 130.0f) / 4.2000003f;
+        f32 distToBurn = (this->actor.scale.x * 130.0f) / 4.2000003f;
+
         if (this->actor.xyzDistToPlayerSq < SQ(distToBurn)) {
+            s16 i;
+
             for (i = 0; i < 18; i++) {
                 player->bodyFlameTimers[i] = Rand_S16Offset(0, 200);
             }
             player->bodyIsBurning = true;
-            func_8002F6D4(play, &this->actor, 20.0f, this->actor.world.rot.y, 0.0f, 8);
-            osSyncPrintf("POWER\n");
+            Actor_SetPlayerKnockbackLarge(play, &this->actor, 20.0f, this->actor.world.rot.y, 0.0f, 8);
+            PRINTF("POWER\n");
         }
     }
 }
@@ -206,8 +220,7 @@ void EnBdfire_DrawFire(EnBdfire* this, PlayState* play) {
     gDPSetEnvColor(POLY_XLU_DISP++, 200, 0, 0, 0);
     gSPSegment(POLY_XLU_DISP++, 8, SEGMENTED_TO_VIRTUAL(D_809BCB10[texIndex]));
     Matrix_Translate(0.0f, 11.0f, 0.0f, MTXMODE_APPLY);
-    gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_en_bdfire.c", 647),
-              G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+    MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_en_bdfire.c", 647);
     gSPDisplayList(POLY_XLU_DISP++, object_kingdodongo_DL_01D950);
     CLOSE_DISPS(play->state.gfxCtx, "../z_en_bdfire.c", 651);
 }

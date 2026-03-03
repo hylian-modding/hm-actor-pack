@@ -1,8 +1,22 @@
-#include "global.h"
+#include "libu64/debug.h"
+#include "libu64/overlay.h"
+#include "map.h"
+#include "printf.h"
+#if PLATFORM_N64
+#include "n64dd.h"
+#endif
+#include "regs.h"
+#include "romfile.h"
+#include "segment_symbols.h"
 #include "terminal.h"
+#include "translation.h"
+#include "map_mark.h"
+#include "play_state.h"
+#include "save.h"
+
 #include "assets/textures/parameter_static/parameter_static.h"
 
-typedef struct {
+typedef struct MapMarkInfo {
     /* 0x00 */ void* texture;
     /* 0x04 */ u32 imageFormat;
     /* 0x08 */ u32 imageSize;
@@ -14,41 +28,24 @@ typedef struct {
     /* 0x20 */ u32 dtdy;
 } MapMarkInfo; // size = 0x24
 
-typedef struct {
+typedef struct MapMarkDataOverlay {
     /* 0x00 */ void* loadedRamAddr; // original name: "allocp"
-    /* 0x04 */ uintptr_t vromStart;
-    /* 0x08 */ uintptr_t vromEnd;
+    /* 0x04 */ RomFile file;
     /* 0x0C */ void* vramStart;
     /* 0x10 */ void* vramEnd;
     /* 0x14 */ void* vramTable;
 } MapMarkDataOverlay; // size = 0x18
 
-static u32 sBaseImageSizes[] = { 0, 1, 2, 3 };
-static u32 sLoadBlockImageSizes[] = { 2, 2, 2, 3 };
-static u32 sIncrImageSizes[] = { 3, 1, 0, 0 };
-static u32 sShiftImageSizes[] = { 2, 1, 0, 0 };
-static u32 sBytesImageSizes[] = { 0, 1, 2, 4 };
-static u32 sLineBytesImageSizes[] = { 0, 1, 2, 2 };
+#define GDP_LOADTEXTUREBLOCK_RUNTIME_QUALIFIERS
+#include "src/code/gDPLoadTextureBlock_Runtime.inc.c"
 
-#define G_IM_SIZ_MARK sBaseImageSizes[markInfo->imageSize]
-#define G_IM_SIZ_MARK_LOAD_BLOCK sLoadBlockImageSizes[markInfo->imageSize]
-#define G_IM_SIZ_MARK_INCR sIncrImageSizes[markInfo->imageSize]
-#define G_IM_SIZ_MARK_SHIFT sShiftImageSizes[markInfo->imageSize]
-#define G_IM_SIZ_MARK_BYTES sBytesImageSizes[markInfo->imageSize]
-#define G_IM_SIZ_MARK_LINE_BYTES sLineBytesImageSizes[markInfo->imageSize]
-
-static MapMarkInfo sMapMarkInfoTable[] = {
+MapMarkInfo sMapMarkInfoTable[] = {
     { gMapChestIconTex, G_IM_FMT_RGBA, G_IM_SIZ_16b, 8, 8, 32, 32, 1 << 10, 1 << 10 }, // Chest Icon
     { gMapBossIconTex, G_IM_FMT_IA, G_IM_SIZ_8b, 8, 8, 32, 32, 1 << 10, 1 << 10 },     // Boss Skull Icon
 };
 
 static MapMarkDataOverlay sMapMarkDataOvl = {
-    NULL,
-    (uintptr_t)_ovl_map_mark_dataSegmentRomStart,
-    (uintptr_t)_ovl_map_mark_dataSegmentRomEnd,
-    _ovl_map_mark_dataSegmentStart,
-    _ovl_map_mark_dataSegmentEnd,
-    gMapMarkDataTable,
+    NULL, ROM_FILE(ovl_map_mark_data), _ovl_map_mark_dataSegmentStart, _ovl_map_mark_dataSegmentEnd, gMapMarkDataTable,
 };
 
 static MapMarkData** sLoadedMarkDataTable;
@@ -58,9 +55,10 @@ void MapMark_Init(PlayState* play) {
     u32 overlaySize = (uintptr_t)overlay->vramEnd - (uintptr_t)overlay->vramStart;
 
     overlay->loadedRamAddr = GAME_STATE_ALLOC(&play->state, overlaySize, "../z_map_mark.c", 235);
-    LogUtils_CheckNullPointer("dlftbl->allocp", overlay->loadedRamAddr, "../z_map_mark.c", 236);
+    LOG_UTILS_CHECK_NULL_POINTER("dlftbl->allocp", overlay->loadedRamAddr, "../z_map_mark.c", 236);
 
-    Overlay_Load(overlay->vromStart, overlay->vromEnd, overlay->vramStart, overlay->vramEnd, overlay->loadedRamAddr);
+    Overlay_Load(overlay->file.vromStart, overlay->file.vromEnd, overlay->vramStart, overlay->vramEnd,
+                 overlay->loadedRamAddr);
 
     sLoadedMarkDataTable = gMapMarkDataTable;
     sLoadedMarkDataTable =
@@ -68,9 +66,21 @@ void MapMark_Init(PlayState* play) {
                                ? (void*)((uintptr_t)overlay->vramTable -
                                          (intptr_t)((uintptr_t)overlay->vramStart - (uintptr_t)overlay->loadedRamAddr))
                                : NULL);
+
+#if PLATFORM_N64
+    if ((B_80121220 != NULL) && (B_80121220->unk_2C != NULL)) {
+        B_80121220->unk_2C(&sLoadedMarkDataTable);
+    }
+#endif
 }
 
 void MapMark_ClearPointers(PlayState* play) {
+#if PLATFORM_N64
+    if ((B_80121220 != NULL) && (B_80121220->unk_30 != NULL)) {
+        B_80121220->unk_30(&sLoadedMarkDataTable);
+    }
+#endif
+
     sMapMarkDataOvl.loadedRamAddr = NULL;
     sLoadedMarkDataTable = NULL;
 }
@@ -88,9 +98,9 @@ void MapMark_DrawForDungeon(PlayState* play) {
     interfaceCtx = &play->interfaceCtx;
 
     if ((gMapData != NULL) && (play->interfaceCtx.mapRoomNum >= gMapData->dgnMinimapCount[dungeon])) {
-        // "Room number exceeded, yikes %d/%d  MapMarkDraw processing interrupted"
-        osSyncPrintf(VT_COL(RED, WHITE) "部屋番号がオーバーしてるで,ヤバイで %d/%d  \nMapMarkDraw の処理を中断します\n",
-                     VT_RST, play->interfaceCtx.mapRoomNum, gMapData->dgnMinimapCount[dungeon]);
+        PRINTF(VT_COL(RED, WHITE) T("部屋番号がオーバーしてるで,ヤバイで %d/%d  \nMapMarkDraw の処理を中断します\n",
+                                    "Room number exceeded, yikes %d/%d  \nMapMarkDraw processing interrupted\n"),
+               VT_RST, play->interfaceCtx.mapRoomNum, gMapData->dgnMinimapCount[dungeon]);
         return;
     }
 
@@ -114,12 +124,13 @@ void MapMark_DrawForDungeon(PlayState* play) {
                 markInfo = &sMapMarkInfoTable[mapMarkIconData->markType];
 
                 gDPPipeSync(OVERLAY_DISP++);
-                gDPLoadTextureBlock(OVERLAY_DISP++, markInfo->texture, markInfo->imageFormat, G_IM_SIZ_MARK,
-                                    markInfo->textureWidth, markInfo->textureHeight, 0, G_TX_NOMIRROR | G_TX_WRAP,
-                                    G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMASK, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
+                gDPLoadTextureBlock_Runtime(OVERLAY_DISP++, markInfo->texture, markInfo->imageFormat,
+                                            markInfo->imageSize, markInfo->textureWidth, markInfo->textureHeight, 0,
+                                            G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMASK,
+                                            G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
 
-                rectLeft = (GREG(94) + markPoint->x + 204) << 2;
-                rectTop = (GREG(95) + markPoint->y + 140) << 2;
+                rectLeft = ((DEBUG_FEATURES ? GREG(94) : 0) + markPoint->x + 204) << 2;
+                rectTop = ((DEBUG_FEATURES ? GREG(95) : 0) + markPoint->y + 140) << 2;
                 gSPTextureRectangle(OVERLAY_DISP++, rectLeft, rectTop, markInfo->rectWidth + rectLeft,
                                     rectTop + markInfo->rectHeight, G_TX_RENDERTILE, 0, 0, markInfo->dsdx,
                                     markInfo->dtdy);

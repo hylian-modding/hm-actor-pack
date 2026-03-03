@@ -7,11 +7,24 @@
 #include "z_demo_sa.h"
 #include "overlays/actors/ovl_En_Elf/z_en_elf.h"
 #include "overlays/actors/ovl_Door_Warp1/z_door_warp1.h"
+
+#include "gfx.h"
+#include "gfx_setupdl.h"
+#include "printf.h"
+#include "regs.h"
+#include "segmented_address.h"
+#include "sfx.h"
+#include "sequence.h"
+#include "terminal.h"
+#include "translation.h"
+#include "z_lib.h"
+#include "play_state.h"
+#include "player.h"
+#include "save.h"
+
 #include "assets/objects/object_sa/object_sa.h"
 
-#include "terminal.h"
-
-#define FLAGS ACTOR_FLAG_4
+#define FLAGS ACTOR_FLAG_UPDATE_CULLING_DISABLED
 
 void DemoSa_Init(Actor* thisx, PlayState* play);
 void DemoSa_Destroy(Actor* thisx, PlayState* play);
@@ -44,7 +57,7 @@ void DemoSa_DrawNothing(DemoSa* this, PlayState* play);
 void DemoSa_DrawOpa(DemoSa* this, PlayState* play);
 void DemoSa_DrawXlu(DemoSa* this, PlayState* play);
 
-typedef enum {
+typedef enum SariaEyeState {
     /* 0 */ SARIA_EYE_OPEN,
     /* 1 */ SARIA_EYE_HALF,
     /* 2 */ SARIA_EYE_CLOSED,
@@ -52,7 +65,7 @@ typedef enum {
     /* 4 */ SARIA_EYE_SAD
 } SariaEyeState;
 
-typedef enum {
+typedef enum SariaMouthState {
     /* 0 */ SARIA_MOUTH_CLOSED2,
     /* 1 */ SARIA_MOUTH_SUPRISED,
     /* 2 */ SARIA_MOUTH_CLOSED,
@@ -69,9 +82,10 @@ static void* sMouthTextures[] = {
     gSariaMouthSmilingOpenTex, gSariaMouthFrowningTex,
 };
 
+#if DEBUG_FEATURES
 static u32 D_80990108 = 0;
+#endif
 
-#pragma asmproc recurse
 #include "z_demo_sa_cutscene_data.inc.c"
 
 static DemoSaActionFunc sActionFuncs[] = {
@@ -86,7 +100,7 @@ static DemoSaDrawFunc sDrawFuncs[] = {
     DemoSa_DrawXlu,
 };
 
-ActorInit Demo_Sa_InitVars = {
+ActorProfile Demo_Sa_Profile = {
     /**/ ACTOR_DEMO_SA,
     /**/ ACTORCAT_NPC,
     /**/ FLAGS,
@@ -127,6 +141,7 @@ void DemoSa_SetMouthIndex(DemoSa* this, s16 mouthIndex) {
     this->mouthIndex = mouthIndex;
 }
 
+#if DEBUG_FEATURES
 void func_8098E530(DemoSa* this) {
     this->action = 7;
     this->drawConfig = 0;
@@ -150,6 +165,7 @@ void func_8098E554(DemoSa* this, PlayState* play) {
         *something = 1;
     }
 }
+#endif
 
 void func_8098E5C8(DemoSa* this, PlayState* play) {
     Actor_UpdateBgCheckInfo(play, &this->actor, 75.0f, 30.0f, 30.0f, UPDBGCHECKINFO_FLAG_0 | UPDBGCHECKINFO_FLAG_2);
@@ -161,7 +177,9 @@ s32 DemoSa_UpdateSkelAnime(DemoSa* this) {
 
 CsCmdActorCue* DemoSa_GetCue(PlayState* play, s32 cueChannel) {
     if (play->csCtx.state != CS_STATE_IDLE) {
-        return play->csCtx.actorCues[cueChannel];
+        CsCmdActorCue* cue = play->csCtx.actorCues[cueChannel];
+
+        return cue;
     }
 
     return NULL;
@@ -256,7 +274,7 @@ void func_8098E960(DemoSa* this, PlayState* play) {
     if ((gSaveContext.chamberCutsceneNum == CHAMBER_CS_FOREST) && !IS_CUTSCENE_LAYER) {
         player = GET_PLAYER(play);
         this->action = 1;
-        play->csCtx.script = D_8099010C;
+        play->csCtx.script = gForestMedallionCs;
         gSaveContext.cutsceneTrigger = 2;
         Item_Give(play, ITEM_MEDALLION_FOREST);
         player->actor.world.rot.y = player->actor.shape.rot.y = this->actor.world.rot.y + 0x8000;
@@ -439,7 +457,9 @@ void func_8098F050(DemoSa* this, PlayState* play) {
 
 void func_8098F0E8(DemoSa* this, PlayState* play) {
     func_8098EEA8(this, play);
+#if DEBUG_FEATURES
     func_8098E554(this, play);
+#endif
 }
 
 void func_8098F118(DemoSa* this, PlayState* play) {
@@ -447,7 +467,9 @@ void func_8098F118(DemoSa* this, PlayState* play) {
     DemoSa_UpdateSkelAnime(this);
     func_8098E480(this);
     func_8098EEFC(this, play);
+#if DEBUG_FEATURES
     func_8098E554(this, play);
+#endif
 }
 
 void func_8098F16C(DemoSa* this, PlayState* play) {
@@ -455,7 +477,9 @@ void func_8098F16C(DemoSa* this, PlayState* play) {
     DemoSa_UpdateSkelAnime(this);
     func_8098EDB0(this);
     func_8098F050(this, play);
+#if DEBUG_FEATURES
     func_8098E554(this, play);
+#endif
 }
 
 void DemoSa_DrawXlu(DemoSa* this, PlayState* play) {
@@ -568,7 +592,8 @@ void func_8098F654(DemoSa* this, PlayState* play) {
                     func_8098F5D0(this);
                     break;
                 default:
-                    osSyncPrintf("Demo_Sa_inEnding_Check_DemoMode:そんな動作は無い!!!!!!!!\n");
+                    PRINTF(T("Demo_Sa_inEnding_Check_DemoMode:そんな動作は無い!!!!!!!!\n",
+                             "Demo_Sa_inEnding_Check_DemoMode: There is no such action!!!!!!!!\n"));
             }
             this->cueId = nextCueId;
         }
@@ -717,7 +742,8 @@ void func_8098FB68(DemoSa* this, PlayState* play) {
                     func_8098FAE0(this);
                     break;
                 default:
-                    osSyncPrintf("Demo_Sa_inPresent_Check_DemoMode:そんな動作は無い!!!!!!!!\n");
+                    PRINTF(T("Demo_Sa_inPresent_Check_DemoMode:そんな動作は無い!!!!!!!!\n",
+                             "Demo_Sa_inPresent_Check_DemoMode: There is no such action!!!!!!!!\n"));
             }
             this->cueId = nextCueId;
         }
@@ -757,7 +783,8 @@ void DemoSa_Update(Actor* thisx, PlayState* play) {
     DemoSa* this = (DemoSa*)thisx;
 
     if (this->action < 0 || this->action >= 21 || sActionFuncs[this->action] == NULL) {
-        osSyncPrintf(VT_FGCOL(RED) "メインモードがおかしい!!!!!!!!!!!!!!!!!!!!!!!!!\n" VT_RST);
+        PRINTF(VT_FGCOL(RED) T("メインモードがおかしい!!!!!!!!!!!!!!!!!!!!!!!!!\n",
+                               "The main mode is wrong!!!!!!!!!!!!!!!!!!!!!!!!!\n") VT_RST);
         return;
     }
     sActionFuncs[this->action](this, play);
@@ -827,7 +854,8 @@ void DemoSa_Draw(Actor* thisx, PlayState* play) {
     DemoSa* this = (DemoSa*)thisx;
 
     if (this->drawConfig < 0 || this->drawConfig >= 3 || sDrawFuncs[this->drawConfig] == NULL) {
-        osSyncPrintf(VT_FGCOL(RED) "描画モードがおかしい!!!!!!!!!!!!!!!!!!!!!!!!!\n" VT_RST);
+        PRINTF(VT_FGCOL(RED) T("描画モードがおかしい!!!!!!!!!!!!!!!!!!!!!!!!!\n",
+                               "The drawing mode is wrong!!!!!!!!!!!!!!!!!!!!!!!!!\n") VT_RST);
         return;
     }
     sDrawFuncs[this->drawConfig](this, play);

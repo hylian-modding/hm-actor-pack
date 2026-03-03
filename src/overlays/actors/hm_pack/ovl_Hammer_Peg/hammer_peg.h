@@ -2,9 +2,11 @@
 #define Z_HAMMER_PEG_H
 
 #include "ultra64.h"
-#include "global.h"
+#include "actor.h"
+#include "collision_check.h"
+#include "play_state.h"
 
-#include "assets_hm_pack/objects/object_hammer_peg/object_hammer_peg.h"
+#include "assets/objects/hm_pack/object_hammer_peg/object_hammer_peg.h"
 
 struct HammerPeg;
 

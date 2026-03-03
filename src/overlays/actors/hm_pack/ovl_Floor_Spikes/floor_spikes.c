@@ -5,7 +5,21 @@
  */
 
 #include "floor_spikes.h"
-#include "assets_hm_pack/objects/object_floor_spikes/object_floor_spikes.h"
+
+#include "actor.h"
+#include "collision_check.h"
+#include "gfx.h"
+#include "ichain.h"
+#include "play_state.h"
+#include "player.h"
+#include "save.h"
+#include "seqcmd.h"
+#include "sequence.h"
+#include "sfx.h"
+#include "sys_matrix.h"
+#include "z_lib.h"
+
+#include "assets/objects/hm_pack/object_floor_spikes/object_floor_spikes.h"
 
 #define SPIKE_TYPE(this)    ((this->dyna.actor.params >> 0xC) & 0xF) // 0xF000
 #define SPIKE_SIZE(this)    ((this->dyna.actor.params >> 0x8) & 0xF) // 0x0F00
@@ -45,7 +59,7 @@
 #define SPIKE_RETRACT_TIME 7
 #define SPIKE_WAIT_TIME 20
 
-#define FLAGS (ACTOR_FLAG_4)
+#define FLAGS (ACTOR_FLAG_UPDATE_CULLING_DISABLED)
 
 void FloorSpikes_Init(Actor* thisx, PlayState* play);
 void FloorSpikes_Destroy(Actor* thisx, PlayState* play);
@@ -94,7 +108,7 @@ typedef enum {
     CYCLIC_WAIT_UP
 } FloorSpikesCyclicState;
 
-const ActorInit Floor_Spikes_InitVars = {
+const ActorProfile Floor_Spikes_Profile = {
     ACTOR_FLOOR_SPIKES,
     ACTORCAT_BG,
     FLAGS,
@@ -108,33 +122,33 @@ const ActorInit Floor_Spikes_InitVars = {
 
 static ColliderQuadInit sDmgPlayerQuadInit = {
     .base = {
-        .colType = COLTYPE_NONE,
+        .colMaterial = COL_MATERIAL_NONE,
         .atFlags = AT_ON | AT_TYPE_ENEMY,
         .shape = COLSHAPE_QUAD,
     },
-    .info = {
-        .toucher = { .dmgFlags = DMG_UNBLOCKABLE, .damage = 16 },
-        .toucherFlags = TOUCH_ON,
+    .elem = {
+        .atDmgInfo = { .dmgFlags = DMG_UNBLOCKABLE, .damage = 16 },
+        .atElemFlags = ATELEM_ON,
     }
 };
 
 static ColliderQuadInit sDmgOthersQuadInit = {
     .base = {
-        .colType = COLTYPE_NONE,
+        .colMaterial = COL_MATERIAL_NONE,
         .atFlags = AT_ON | AT_TYPE_PLAYER | AT_TYPE_OTHER,
         .shape = COLSHAPE_QUAD,
     },
-    .info = {
-        .toucher = { .dmgFlags = DMG_SLASH_MASTER, .damage = 16 },
-        .toucherFlags = TOUCH_ON,
+    .elem = {
+        .atDmgInfo = { .dmgFlags = DMG_SLASH_MASTER, .damage = 16 },
+        .atElemFlags = ATELEM_ON,
     }
 };
 
 static InitChainEntry sInitChain[] = {
     ICHAIN_VEC3F_DIV1000(scale, 100, ICHAIN_CONTINUE),
-    ICHAIN_F32(uncullZoneForward, 3000, ICHAIN_CONTINUE),
-    ICHAIN_F32(uncullZoneScale, 500, ICHAIN_CONTINUE),
-    ICHAIN_F32(uncullZoneDownward, 1000, ICHAIN_STOP),
+    ICHAIN_F32(cullingVolumeDistance, 3000, ICHAIN_CONTINUE),
+    ICHAIN_F32(cullingVolumeScale, 500, ICHAIN_CONTINUE),
+    ICHAIN_F32(cullingVolumeDownward, 1000, ICHAIN_STOP),
 };
 
 void FloorSpikes_Init(Actor* thisx, PlayState* play) {
@@ -310,7 +324,7 @@ void FloorSpikes_Draw(Actor* thisx, PlayState* play) {
                                   &this->playerCollider.dim.quad[2], &this->playerCollider.dim.quad[3]);
 
         Matrix_Scale(1.0f, this->spikeProgress, 1.0f, MTXMODE_APPLY);
-        gSPMatrix(POLY_OPA_DISP++, Matrix_NewMtx(play->state.gfxCtx, __FILE__, __LINE__),
+        gSPMatrix(POLY_OPA_DISP++, Matrix_Finalize(play->state.gfxCtx, __FILE__, __LINE__),
               G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
 
         Gfx_DrawDListOpa(play, sSpikesDLists[SPIKE_SIZE(this)]);

@@ -8,9 +8,19 @@
  */
 
 #include "wall_pull_switch.h"
-#include "assets_hm_pack/objects/object_wall_pull_switch/object_wall_pull_switch.h"
 
-#define FLAGS (ACTOR_FLAG_4 | ACTOR_FLAG_5)
+#include "actor.h"
+#include "ichain.h"
+#include "play_state.h"
+#include "player.h"
+#include "save.h"
+#include "sfx.h"
+#include "sys_math.h"
+#include "z_lib.h"
+
+#include "assets/objects/hm_pack/object_wall_pull_switch/object_wall_pull_switch.h"
+
+#define FLAGS (ACTOR_FLAG_UPDATE_CULLING_DISABLED | ACTOR_FLAG_DRAW_CULLING_DISABLED)
 
 #define SWITCH_FLAG(this) (this->dyna.actor.params & 0x3F)
 #define DURATION(this) ((this->dyna.actor.params >> 8) & 0xFF)
@@ -34,7 +44,7 @@ void WallPullSwitch_SetupPlayerPulling(WallPullSwitch* this, PlayState* play);
 void WallPullSwitch_SetupRetract(WallPullSwitch* this, PlayState* play);
 void WallPullSwitch_SetupStayOpen(WallPullSwitch* this, PlayState* play);
 
-const ActorInit Wall_Pull_Switch_InitVars = {
+const ActorProfile Wall_Pull_Switch_Profile = {
     ACTOR_WALL_PULL_SWITCH,
     ACTORCAT_SWITCH,
     FLAGS,
@@ -214,7 +224,7 @@ void WallPullSwitch_SetupPlayerPulling(WallPullSwitch* this, PlayState* play) {
 void WallPullSwitch_Retract(WallPullSwitch* this, PlayState* play) {
     DECR(this->timer);
 
-    func_8002F994(&this->dyna.actor, this->timer);
+    Actor_PlaySfx_FlaggedTimer(&this->dyna.actor, this->timer);
     this->dyna.actor.world.pos.x -= Math_SinS(this->dyna.actor.world.rot.y) * this->stepSize;
     this->dyna.actor.world.pos.z -= Math_CosS(this->dyna.actor.world.rot.y) * this->stepSize;
 

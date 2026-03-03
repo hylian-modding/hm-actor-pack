@@ -1,4 +1,11 @@
-#include "global.h"
+#include "segment_symbols.h"
+#include "console_logo_state.h"
+#include "file_select_state.h"
+#include "map_select_state.h"
+#include "setup_state.h"
+#include "title_setup_state.h"
+#include "z_game_dlftbls.h"
+#include "play_state.h"
 
 // Linker symbol declarations (used in the table below)
 #define DEFINE_GAMESTATE(typeName, enumName, name) DECLARE_OVERLAY_SEGMENT(name)
@@ -10,22 +17,26 @@
 #undef DEFINE_GAMESTATE_INTERNAL
 
 // Gamestate Overlay Table definition
-#define DEFINE_GAMESTATE_INTERNAL(typeName, enumName) \
-    { NULL, 0, 0, NULL, NULL, NULL, typeName##_Init, typeName##_Destroy, NULL, NULL, 0, sizeof(typeName##State) },
+#define DEFINE_GAMESTATE_INTERNAL(typeName, enumName)                                                     \
+    {                                                                                                     \
+        NULL, ROM_FILE_UNSET,          NULL, NULL, NULL, typeName##_Init, typeName##_Destroy, NULL, NULL, \
+        0,    sizeof(typeName##State),                                                                    \
+    },
 
 #define DEFINE_GAMESTATE(typeName, enumName, name) \
-    { NULL,                                        \
-      (uintptr_t)_ovl_##name##SegmentRomStart,     \
-      (uintptr_t)_ovl_##name##SegmentRomEnd,       \
-      _ovl_##name##SegmentStart,                   \
-      _ovl_##name##SegmentEnd,                     \
-      NULL,                                        \
-      typeName##_Init,                             \
-      typeName##_Destroy,                          \
-      NULL,                                        \
-      NULL,                                        \
-      0,                                           \
-      sizeof(typeName##State) },
+    {                                              \
+        NULL,                                      \
+        ROM_FILE(ovl_##name),                      \
+        _ovl_##name##SegmentStart,                 \
+        _ovl_##name##SegmentEnd,                   \
+        NULL,                                      \
+        typeName##_Init,                           \
+        typeName##_Destroy,                        \
+        NULL,                                      \
+        NULL,                                      \
+        0,                                         \
+        sizeof(typeName##State),                   \
+    },
 
 GameStateOverlay gGameStateOverlayTable[] = {
 #include "tables/gamestate_table.h"

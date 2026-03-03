@@ -2,7 +2,8 @@
 #define JUMPTOGGLE_PLATFORM_H
 
 #include "ultra64.h"
-#include "global.h"
+#include "actor.h"
+#include "play_state.h"
 
 #define GET_JUMPTOGGLE_TYPE(this) (this->dyna.actor.params)
 

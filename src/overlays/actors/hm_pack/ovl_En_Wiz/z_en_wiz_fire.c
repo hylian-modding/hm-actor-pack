@@ -5,10 +5,21 @@
  */
 
 #include "z_en_wiz_fire.h"
-#include "overlays/actors/hm_pack/ovl_En_Wiz/z_en_wiz.h"
-#include "assets_hm_pack/objects/object_wiz/object_wiz.h"
 
-#define FLAGS (ACTOR_FLAG_4 | ACTOR_FLAG_27)
+#include "actor.h"
+#include "array_count.h"
+#include "gfx.h"
+#include "gfx_setupdl.h"
+#include "player.h"
+#include "rand.h"
+#include "sfx.h"
+#include "sys_matrix.h"
+#include "z_lib.h"
+
+#include "overlays/actors/hm_pack/ovl_En_Wiz/z_en_wiz.h"
+#include "assets/objects/hm_pack/object_wiz/object_wiz.h"
+
+#define FLAGS (ACTOR_FLAG_UPDATE_CULLING_DISABLED | ACTOR_FLAG_LOCK_ON_DISABLED)
 
 #define THIS ((EnWizFire*)thisx)
 
@@ -39,7 +50,7 @@ typedef enum {
 
 static s32 sPoolHitByIceArrow = false;
 
-ActorInit En_Wiz_Fire_InitVars = {
+ActorProfile En_Wiz_Fire_Profile = {
     ACTOR_EN_WIZ_FIRE,
     ACTORCAT_ENEMY,
     FLAGS,
@@ -53,7 +64,7 @@ ActorInit En_Wiz_Fire_InitVars = {
 
 static ColliderCylinderInit sCylinderInit = {
     {
-        COLTYPE_NONE,
+        COL_MATERIAL_NONE,
         AT_ON | AT_TYPE_ENEMY,
         AC_ON | AC_TYPE_PLAYER,
         OC1_NONE,
@@ -61,11 +72,11 @@ static ColliderCylinderInit sCylinderInit = {
         COLSHAPE_CYLINDER,
     },
     {
-        ELEMTYPE_UNK0,
+        ELEM_MATERIAL_UNK0,
         { 0xF7CFFFFF, 0x09, 0x10 },
         { 0x01001202, 0x00, 0x00 },
-        TOUCH_ON | TOUCH_SFX_NORMAL,
-        BUMP_ON,
+        ATELEM_ON | ATELEM_SFX_NORMAL,
+        ACELEM_ON,
         OCELEM_NONE,
     },
     { 0, 0, 0, { 0, 0, 0 } },
@@ -78,26 +89,26 @@ void EnWizFire_Init(Actor* thisx, PlayState* play) {
     Collider_SetCylinder(play, &this->collider, &this->actor, &sCylinderInit);
 
     this->type = EN_WIZ_FIRE_GET_TYPE(&this->actor);
-    this->actor.targetMode = 3;
+    this->actor.attentionRangeType = ATTENTION_RANGE_3;
     this->wallCheckTimer = 10;
     this->alpha = 255.0f;
 
     if (!Player_HasMirrorShieldEquipped(play)) {
-        this->collider.info.toucher.dmgFlags = 0x20000000;
+        this->collider.elem.atDmgInfo.dmgFlags = 0x20000000;
     }
 
     switch (this->type) {
         case EN_WIZ_FIRE_TYPE_ICE_MAGIC_PROJECTILE:
             this->isIceType = true;
-            this->collider.info.toucher.damage = 8;
-            this->collider.info.toucher.effect = 2;
-            this->collider.info.bumper.dmgFlags = (0x1000000 | 0x800 | 0x200 | 0x2);
+            this->collider.elem.atDmgInfo.damage = 8;
+            this->collider.elem.atDmgInfo.hitSpecialEffect = 2;
+            this->collider.elem.acDmgInfo.dmgFlags = (0x1000000 | 0x800 | 0x200 | 0x2);
             this->type = EN_WIZ_FIRE_TYPE_MAGIC_PROJECTILE;
             // fallthrough
         case EN_WIZ_FIRE_TYPE_MAGIC_PROJECTILE:
             if (this->type == EN_WIZ_FIRE_TYPE_ICE_MAGIC_PROJECTILE) {
                 this->type = EN_WIZ_FIRE_TYPE_MAGIC_PROJECTILE;
-                this->collider.info.toucher.damage = 8;
+                this->collider.elem.atDmgInfo.damage = 8;
             }
             // fallthrough
         case EN_WIZ_FIRE_TYPE_ARCING_MAGIC_PROJECTILE:
@@ -109,7 +120,7 @@ void EnWizFire_Init(Actor* thisx, PlayState* play) {
             this->actor.draw = EnWizFire_DrawSmallFlame;
             this->smallFlameScroll = Rand_S16Offset(0, 10000);
             this->action = EN_WIZ_FIRE_ACTION_SMALL_FLAME;
-            this->collider.info.toucher.damage = 2;
+            this->collider.elem.atDmgInfo.damage = 2;
             this->actionFunc = EnWiz_SetupSmallFlame;
             break;
 
@@ -273,7 +284,7 @@ void EnWiz_MoveMagicProjectile(EnWizFire* this, PlayState* play) {
     if ((this->type != EN_WIZ_FIRE_TYPE_REFLECTED_MAGIC_PROJECTILE) && (this->timer != 0)) {
         if (this->collider.base.acFlags & AC_HIT) {
             this->collider.base.acFlags &= ~AC_HIT;
-            if (this->collider.info.acHitInfo->toucher.dmgFlags == 0x1000) {
+            if (this->collider.elem.acHitElem->atDmgInfo.dmgFlags == 0x1000) {
                 this->timer = 0;
                 this->hitByIceArrow = true;
                 SfxSource_PlaySfxAtFixedWorldPos(play, &this->actor.world.pos, 50, NA_SE_EV_ICE_MELT);
@@ -284,8 +295,8 @@ void EnWiz_MoveMagicProjectile(EnWizFire* this, PlayState* play) {
             Actor_PlaySfx(&this->actor, NA_SE_IT_SHIELD_REFLECT_MG);
             this->collider.base.atFlags &= ~(AT_TYPE_ENEMY | AT_BOUNCED | AT_HIT);
             this->collider.base.atFlags |= AT_TYPE_PLAYER;
-            this->collider.info.toucher.dmgFlags = 0x20;
-            this->collider.info.toucher.damage = 2;
+            this->collider.elem.atDmgInfo.dmgFlags = 0x20;
+            this->collider.elem.atDmgInfo.damage = 2;
             this->timer = 100;
             this->type = EN_WIZ_FIRE_TYPE_REFLECTED_MAGIC_PROJECTILE;
             this->actor.velocity.x *= -1.0f;
@@ -332,7 +343,7 @@ void EnWiz_SmallFlame(EnWizFire* this, PlayState* play) {
                 this->timer -= 10;
             }
 
-            if (this->collider.info.acHitInfo->toucher.dmgFlags == 0x1000) {
+            if (this->collider.elem.acHitElem->atDmgInfo.dmgFlags == 0x1000) {
                 this->timer = 0;
                 this->hitByIceArrow = true;
                 SfxSource_PlaySfxAtFixedWorldPos(play, &this->actor.world.pos, 50, NA_SE_EV_ICE_MELT);
@@ -399,7 +410,7 @@ void EnWiz_Pool(EnWizFire* this, PlayState* play) {
 
         if (this->collider.base.acFlags & AC_HIT) {
             this->collider.base.acFlags &= ~AC_HIT;
-            if (!sPoolHitByIceArrow && (this->collider.info.acHitInfo->toucher.dmgFlags == 0x1000)) {
+            if (!sPoolHitByIceArrow && (this->collider.elem.acHitElem->atDmgInfo.dmgFlags == 0x1000)) {
                 sPoolHitByIceArrow = true;
                 this->hitByIceArrow = true;
                 this->poolTimer = 0;
@@ -587,7 +598,7 @@ void EnWizFire_DrawIcePool(EnWizFire* this, PlayState* play) {
         Matrix_Translate(this->actor.world.pos.x, this->actor.floorHeight, this->actor.world.pos.z, MTXMODE_NEW);
         Matrix_Scale(this->poolScale, this->poolScale, this->poolScale, MTXMODE_APPLY);
 
-        gSPMatrix(POLY_XLU_DISP++, Matrix_NewMtx(play->state.gfxCtx, "../z_en_wiz_fire.c", __LINE__), G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+        gSPMatrix(POLY_XLU_DISP++, Matrix_Finalize(play->state.gfxCtx, "../z_en_wiz_fire.c", __LINE__), G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
         gDPPipeSync(POLY_XLU_DISP++);
         gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 255, 255, 255, (s8)this->alpha);
         gDPSetEnvColor(POLY_XLU_DISP++, 0, 40, 30, 80);
@@ -600,7 +611,7 @@ void EnWizFire_DrawIcePool(EnWizFire* this, PlayState* play) {
 
         Matrix_RotateY(BINANG_TO_RAD(0), MTXMODE_APPLY);
 
-        gSPMatrix(POLY_XLU_DISP++, Matrix_NewMtx(play->state.gfxCtx, "../z_en_wiz_fire.c", __LINE__), G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+        gSPMatrix(POLY_XLU_DISP++, Matrix_Finalize(play->state.gfxCtx, "../z_en_wiz_fire.c", __LINE__), G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
         gSPDisplayList(POLY_XLU_DISP++, gWizrobeIcePoolShineDL);
     }
 
@@ -625,7 +636,7 @@ void EnWizFire_DrawFirePoolAndFlame(EnWizFire* this, PlayState* play2) {
         gSPSegment(POLY_XLU_DISP++, 0x08,
                    Gfx_TwoTexScroll(play->state.gfxCtx, 0, -play->state.frames % 128, 0, 0x20, 0x20, 1,
                                     (play->state.frames * 2) % 128, 0, 0x20, 0x20));
-        gSPMatrix(POLY_XLU_DISP++, Matrix_NewMtx(play->state.gfxCtx, "../z_en_wiz_fire.c", __LINE__), G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+        gSPMatrix(POLY_XLU_DISP++, Matrix_Finalize(play->state.gfxCtx, "../z_en_wiz_fire.c", __LINE__), G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
         gDPPipeSync(POLY_XLU_DISP++);
         gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 100, 40, 0, (s8)this->alpha);
         gDPSetEnvColor(POLY_XLU_DISP++, 255, 245, 255, 128);
@@ -647,7 +658,7 @@ void EnWizFire_DrawFirePoolAndFlame(EnWizFire* this, PlayState* play2) {
 
         Matrix_Scale(this->fireSmokeScale, this->fireSmokeScale, this->fireSmokeScale, MTXMODE_APPLY);
 
-        gSPMatrix(POLY_XLU_DISP++, Matrix_NewMtx(play->state.gfxCtx, "../z_en_wiz_fire.c", __LINE__), G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+        gSPMatrix(POLY_XLU_DISP++, Matrix_Finalize(play->state.gfxCtx, "../z_en_wiz_fire.c", __LINE__), G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
         gSPDisplayList(POLY_XLU_DISP++, gWizrobeFireSmokeDL);
 
         Matrix_Pop();
@@ -664,7 +675,7 @@ void EnWizFire_DrawFirePoolAndFlame(EnWizFire* this, PlayState* play2) {
 
         Matrix_Scale(this->bigFlameScale, this->bigFlameScale, this->bigFlameScale, MTXMODE_APPLY);
 
-        gSPMatrix(POLY_XLU_DISP++, Matrix_NewMtx(play->state.gfxCtx, "../z_en_wiz_fire.c", __LINE__), G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+        gSPMatrix(POLY_XLU_DISP++, Matrix_Finalize(play->state.gfxCtx, "../z_en_wiz_fire.c", __LINE__), G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
         gSPDisplayList(POLY_XLU_DISP++, gWizrobeBigFlameDL);
     }
 
@@ -700,7 +711,7 @@ void EnWizFire_Draw(Actor* thisx, PlayState* play) {
                 Matrix_ReplaceRotation(&play->billboardMtxF);
                 Matrix_RotateZ(BINANG_TO_RAD(this->actor.world.rot.z), MTXMODE_APPLY);
 
-                gSPMatrix(POLY_XLU_DISP++, Matrix_NewMtx(play->state.gfxCtx, "../z_en_wiz_fire.c", __LINE__), G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+                gSPMatrix(POLY_XLU_DISP++, Matrix_Finalize(play->state.gfxCtx, "../z_en_wiz_fire.c", __LINE__), G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
                 gSPDisplayList(POLY_XLU_DISP++, gWizrobeMagicProjectileDL);
             }
         }
@@ -735,7 +746,7 @@ void EnWizFire_DrawSmallFlame(Actor* thisx, PlayState* play) {
 
     Matrix_Mult(&play->billboardMtxF, MTXMODE_APPLY);
 
-    gSPMatrix(POLY_XLU_DISP++, Matrix_NewMtx(play->state.gfxCtx, "../z_en_wiz_fire.c", __LINE__), G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+    gSPMatrix(POLY_XLU_DISP++, Matrix_Finalize(play->state.gfxCtx, "../z_en_wiz_fire.c", __LINE__), G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
     gSPDisplayList(POLY_XLU_DISP++, gWizrobeSmallFlameDL);
 
     CLOSE_DISPS(play->state.gfxCtx, "../z_en_wiz_fire.c", __LINE__);
@@ -820,7 +831,7 @@ void EnWizFire_DrawEffects(EnWizFire* this, PlayState* play) {
             Matrix_ReplaceRotation(&play->billboardMtxF);
             Matrix_Scale(effect->scale, effect->scale, 1.0f, MTXMODE_APPLY);
 
-            gSPMatrix(POLY_XLU_DISP++, Matrix_NewMtx(gfxCtx, "../z_en_wiz_fire.c", __LINE__), G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+            gSPMatrix(POLY_XLU_DISP++, Matrix_Finalize(gfxCtx, "../z_en_wiz_fire.c", __LINE__), G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
             gDPSetRenderMode(POLY_XLU_DISP++, G_RM_PASS, G_RM_AA_ZB_XLU_SURF2);
             gSPClearGeometryMode(POLY_XLU_DISP++, G_CULL_BACK | G_FOG);
             gSPDisplayList(POLY_XLU_DISP++, gWizrobeIceSmokeModelDL);

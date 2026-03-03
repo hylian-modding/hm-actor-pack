@@ -70,10 +70,11 @@ First, copy all of the following into your repo:
 
 ```
 Makefile
-spec
-spec.hm_pack_actors.inc
-spec.hm_pack_objects.inc
-assets_hm_pack/
+spec/spec
+spec/hm_pack_actors.inc
+spec/hm_pack_objects.inc
+assets/objects/hm_pack/
+assets/scenes/hm_pack/
 src/overlays/actors/hm_pack/
 include/tables/hm_pack/
 include/tables/actor_table.h
@@ -84,7 +85,7 @@ If you're uncomfortable overwriting the Makefile and/or spec, or if the decomp r
 
 Now, run the following commands:
 ```
-make clean && make setup && make
+make setup && make
 ```
 You should now have a ROM built successfully!
 
@@ -109,28 +110,28 @@ Start by adding the scene and room files at the end of the `spec` file:
 beginseg
     name "test_map_scene"
     romalign 0x1000
-    include "$(BUILD_DIR)/assets_hm_pack/scenes/test_map/test_map_scene.o"
+    include "$(BUILD_DIR)/assets/scenes/hm_pack/test_map/test_map_scene.o"
     number 2
 endseg
 
 beginseg
     name "test_map_room_0"
     romalign 0x1000
-    include "$(BUILD_DIR)/assets_hm_pack/scenes/test_map/test_map_room_0.o"
+    include "$(BUILD_DIR)/assets/scenes/hm_pack/test_map/test_map_room_0.o"
     number 3
 endseg
 
 beginseg
     name "test_map_room_1"
     romalign 0x1000
-    include "$(BUILD_DIR)/assets_hm_pack/scenes/test_map/test_map_room_1.o"
+    include "$(BUILD_DIR)/assets/scenes/hm_pack/test_map/test_map_room_1.o"
     number 3
 endseg
 
 beginseg
     name "test_map_room_2"
     romalign 0x1000
-    include "$(BUILD_DIR)/assets_hm_pack/scenes/test_map/test_map_room_2.o"
+    include "$(BUILD_DIR)/assets/scenes/hm_pack/test_map/test_map_room_2.o"
     number 3
 endseg
 ```
@@ -155,7 +156,7 @@ Finally, add a map select entry at the end of the ``sScenes`` array in ``src/ove
 
 Run the following commands:
 ```
-make clean && make setup && make
+make
 ```
 
 Now boot into the game, go to map select, and select the `HM Pack Test Map` entry. You should be in the test map and see all of the new actors!

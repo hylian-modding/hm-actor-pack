@@ -7,11 +7,23 @@
 #include "z_bg_bowl_wall.h"
 #include "overlays/actors/ovl_En_Wall_Tubo/z_en_wall_tubo.h"
 #include "overlays/effects/ovl_Effect_Ss_Hahen/z_eff_ss_hahen.h"
-#include "assets/objects/object_bowl/object_bowl.h"
-#include "quake.h"
-#include "terminal.h"
 
-#define FLAGS (ACTOR_FLAG_4 | ACTOR_FLAG_5)
+#include "gfx.h"
+#include "gfx_setupdl.h"
+#include "printf.h"
+#include "quake.h"
+#include "rand.h"
+#include "sfx.h"
+#include "sys_matrix.h"
+#include "terminal.h"
+#include "translation.h"
+#include "z_lib.h"
+#include "effect.h"
+#include "play_state.h"
+
+#include "assets/objects/object_bowl/object_bowl.h"
+
+#define FLAGS (ACTOR_FLAG_UPDATE_CULLING_DISABLED | ACTOR_FLAG_DRAW_CULLING_DISABLED)
 
 void BgBowlWall_Init(Actor* thisx, PlayState* play);
 void BgBowlWall_Destroy(Actor* thisx, PlayState* play);
@@ -24,7 +36,7 @@ void BgBowlWall_FallDoEffects(BgBowlWall* this, PlayState* play);
 void BgBowlWall_FinishFall(BgBowlWall* this, PlayState* play);
 void BgBowlWall_Reset(BgBowlWall* this, PlayState* play);
 
-ActorInit Bg_Bowl_Wall_InitVars = {
+ActorProfile Bg_Bowl_Wall_Profile = {
     /**/ ACTOR_BG_BOWL_WALL,
     /**/ ACTORCAT_PROP,
     /**/ FLAGS,
@@ -61,8 +73,10 @@ void BgBowlWall_Init(Actor* thisx, PlayState* play) {
 
     this->dyna.bgId = DynaPoly_SetBgActor(play, &play->colCtx.dyna, &this->dyna.actor, colHeader);
     this->initPos = this->dyna.actor.world.pos;
-    osSyncPrintf("\n\n");
-    osSyncPrintf(VT_FGCOL(GREEN) " ☆☆☆☆☆ ボーリングおじゃま壁発生 ☆☆☆☆☆ %d\n" VT_RST, this->dyna.actor.params);
+    PRINTF("\n\n");
+    PRINTF(VT_FGCOL(GREEN)
+               T(" ☆☆☆☆☆ ボーリングおじゃま壁発生 ☆☆☆☆☆ %d\n", " ☆☆☆☆☆ Bowling obstacle wall spawns ☆☆☆☆☆ %d\n") VT_RST,
+           this->dyna.actor.params);
     this->actionFunc = BgBowlWall_SpawnBullseyes;
     this->dyna.actor.scale.x = this->dyna.actor.scale.y = this->dyna.actor.scale.z = 1.0f;
 }
@@ -83,7 +97,7 @@ void BgBowlWall_SpawnBullseyes(BgBowlWall* this, PlayState* play) {
     if (type != 0) {
         type += (s16)Rand_ZeroFloat(2.99f);
         this->dyna.actor.shape.rot.z = this->dyna.actor.world.rot.z = sTargetRot[type];
-        osSyncPrintf("\n\n");
+        PRINTF("\n\n");
     }
     this->bullseyeCenter.x = sBullseyeOffset[type].x + this->dyna.actor.world.pos.x;
     this->bullseyeCenter.y = sBullseyeOffset[type].y + this->dyna.actor.world.pos.y;
@@ -207,8 +221,7 @@ void BgBowlWall_Draw(Actor* thisx, PlayState* play2) {
     Gfx_SetupDL_25Xlu(play->state.gfxCtx);
     gSPSegment(POLY_OPA_DISP++, 0x8, Gfx_TexScroll(play->state.gfxCtx, 0, -2 * (frames = play->state.frames), 16, 16));
     gDPPipeSync(POLY_OPA_DISP++);
-    gSPMatrix(POLY_OPA_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_bg_bowl_wall.c", 453),
-              G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+    MATRIX_FINALIZE_AND_LOAD(POLY_OPA_DISP++, play->state.gfxCtx, "../z_bg_bowl_wall.c", 453);
 
     if (this->dyna.actor.params == 0) {
         gSPDisplayList(POLY_OPA_DISP++, gBowlingRound1WallDL);

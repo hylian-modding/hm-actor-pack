@@ -2,9 +2,11 @@
 #define Z_POLSVOICE_H
 
 #include "ultra64.h"
-#include "global.h"
+#include "actor.h"
+#include "collision_check.h"
+#include "play_state.h"
 
-#include "assets_hm_pack/objects/object_pols_voice/object_pols_voice.h"
+#include "assets/objects/hm_pack/object_pols_voice/object_pols_voice.h"
 
 struct PolsVoice;
 

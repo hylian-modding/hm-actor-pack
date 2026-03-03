@@ -1,8 +1,18 @@
 #include "z_en_heishi4.h"
-#include "assets/objects/object_sd/object_sd.h"
-#include "terminal.h"
 
-#define FLAGS (ACTOR_FLAG_0 | ACTOR_FLAG_3)
+#include "gfx.h"
+#include "gfx_setupdl.h"
+#include "printf.h"
+#include "terminal.h"
+#include "translation.h"
+#include "face_reaction.h"
+#include "play_state.h"
+#include "player.h"
+#include "save.h"
+
+#include "assets/objects/object_sd/object_sd.h"
+
+#define FLAGS (ACTOR_FLAG_ATTENTION_ENABLED | ACTOR_FLAG_FRIENDLY)
 
 void EnHeishi4_Init(Actor* thisx, PlayState* play);
 void EnHeishi4_Destroy(Actor* thisx, PlayState* play);
@@ -21,7 +31,7 @@ void func_80A56994(EnHeishi4* this, PlayState* play);
 void func_80A56A50(EnHeishi4* this, PlayState* play);
 void func_80A56ACC(EnHeishi4* this, PlayState* play);
 
-ActorInit En_Heishi4_InitVars = {
+ActorProfile En_Heishi4_Profile = {
     /**/ ACTOR_EN_HEISHI4,
     /**/ ACTORCAT_NPC,
     /**/ FLAGS,
@@ -37,7 +47,7 @@ static u32 sMaskReactionSets[] = { MASK_REACTION_SET_HEISHI4_1, MASK_REACTION_SE
 
 static ColliderCylinderInit sCylinderInit = {
     {
-        COLTYPE_NONE,
+        COL_MATERIAL_NONE,
         AT_NONE,
         AC_NONE,
         OC1_ON | OC1_TYPE_ALL,
@@ -45,11 +55,11 @@ static ColliderCylinderInit sCylinderInit = {
         COLSHAPE_CYLINDER,
     },
     {
-        ELEMTYPE_UNK0,
-        { 0x00000000, 0x00, 0x00 },
-        { 0x00000000, 0x00, 0x00 },
-        TOUCH_NONE,
-        BUMP_NONE,
+        ELEM_MATERIAL_UNK0,
+        { 0x00000000, HIT_SPECIAL_EFFECT_NONE, 0x00 },
+        { 0x00000000, HIT_BACKLASH_NONE, 0x00 },
+        ATELEM_NONE,
+        ACELEM_NONE,
         OCELEM_ON,
     },
     { 33, 40, 0, { 0, 0, 0 } },
@@ -59,10 +69,10 @@ void EnHeishi4_Init(Actor* thisx, PlayState* play) {
     EnHeishi4* this = (EnHeishi4*)thisx;
 
     Actor_SetScale(thisx, 0.01f);
-    this->type = thisx->params & 0xFF;
+    this->type = PARAMS_GET_U(thisx->params, 0, 8);
     thisx->colChkInfo.mass = MASS_IMMOVABLE;
     this->pos = thisx->world.pos;
-    thisx->targetMode = 6;
+    thisx->attentionRangeType = ATTENTION_RANGE_6;
     if (this->type == HEISHI4_AT_MARKET_DYING) {
         this->height = 30.0f;
         ActorShape_Init(&thisx->shape, 0.0f, NULL, 30.0f);
@@ -80,7 +90,7 @@ void EnHeishi4_Init(Actor* thisx, PlayState* play) {
     this->collider.dim.radius = 15;
     this->collider.dim.height = 70;
     switch (this->type) {
-        case HEISHI4_AT_KAKRIKO_ENTRANCE:
+        case HEISHI4_AT_KAKARIKO_ENTRANCE:
         case HEISHI4_AT_IMPAS_HOUSE:
             this->actionFunc = func_80A56328;
             break;
@@ -93,12 +103,18 @@ void EnHeishi4_Init(Actor* thisx, PlayState* play) {
             this->actionFunc = func_80A56544;
             break;
     }
-    this->unk_27C = (thisx->params >> 8) & 0xFF;
-    osSyncPrintf("\n\n");
-    osSyncPrintf(VT_FGCOL(GREEN) " ☆☆☆☆☆ 兵士２セット完了！ ☆☆☆☆☆ %d\n" VT_RST, thisx->params);
-    osSyncPrintf(VT_FGCOL(YELLOW) " ☆☆☆☆☆ 識別完了！\t    ☆☆☆☆☆ %d\n" VT_RST, this->type);
-    osSyncPrintf(VT_FGCOL(MAGENTA) " ☆☆☆☆☆ メッセージ完了！   ☆☆☆☆☆ %x\n\n" VT_RST, (thisx->params >> 8) & 0xF);
-    osSyncPrintf("\n\n");
+    this->unk_27C = PARAMS_GET_U(thisx->params, 8, 8);
+    PRINTF("\n\n");
+    PRINTF(VT_FGCOL(GREEN) T(" ☆☆☆☆☆ 兵士２セット完了！ ☆☆☆☆☆ %d\n", " ☆☆☆☆☆ Soldier Set 2 Completed! ☆☆☆☆☆ %d\n")
+               VT_RST,
+           thisx->params);
+    PRINTF(VT_FGCOL(YELLOW) T(" ☆☆☆☆☆ 識別完了！\t    ☆☆☆☆☆ %d\n", " ☆☆☆☆☆ Identification Completed!\t ☆☆☆☆☆ %d\n")
+               VT_RST,
+           this->type);
+    PRINTF(VT_FGCOL(MAGENTA) T(" ☆☆☆☆☆ メッセージ完了！   ☆☆☆☆☆ %x\n\n", " ☆☆☆☆☆ Message completed!       ☆☆☆☆☆ %x\n\n")
+               VT_RST,
+           PARAMS_GET_U(thisx->params, 8, 4));
+    PRINTF("\n\n");
 }
 
 void EnHeishi4_Destroy(Actor* thisx, PlayState* play) {
@@ -167,7 +183,7 @@ void func_80A56544(EnHeishi4* this, PlayState* play) {
 
     Animation_Change(&this->skelAnime, &gEnHeishiIdleAnim, 1.0f, 0.0f, (s16)frames, ANIMMODE_LOOP, -10.0f);
     if (LINK_AGE_IN_YEARS != YEARS_CHILD) {
-        osSyncPrintf(VT_FGCOL(GREEN) " ☆☆☆☆☆ ぎゃぁ！オトナだー ☆☆☆☆☆ \n" VT_RST);
+        PRINTF(VT_FGCOL(GREEN) T(" ☆☆☆☆☆ ぎゃぁ！オトナだー ☆☆☆☆☆ \n", " ☆☆☆☆☆ Oh, no! I'm an adult! ☆☆☆☆☆ \n") VT_RST);
         Actor_Kill(&this->actor);
     } else {
         this->actionFunc = func_80A56614;
@@ -211,25 +227,28 @@ void func_80A56614(EnHeishi4* this, PlayState* play) {
 }
 
 void func_80A5673C(EnHeishi4* this, PlayState* play) {
+    f32 frames;
+
     if (GET_EVENTCHKINF(EVENTCHKINF_45)) {
-        osSyncPrintf(VT_FGCOL(YELLOW) " ☆☆☆☆☆ マスターソード祝入手！ ☆☆☆☆☆ \n" VT_RST);
+        PRINTF(VT_FGCOL(YELLOW) T(" ☆☆☆☆☆ マスターソード祝入手！ ☆☆☆☆☆ \n",
+                                  " ☆☆☆☆☆ Congratulations on obtaining the Master Sword! ☆☆☆☆☆ \n") VT_RST);
         Actor_Kill(&this->actor);
         return;
     }
     this->unk_284 = 0;
     if (GET_EVENTCHKINF(EVENTCHKINF_80)) {
         if (!GET_INFTABLE(INFTABLE_6C)) {
-            f32 frames = Animation_GetLastFrame(&gEnHeishiDyingGuardAnim_00C444);
+            frames = Animation_GetLastFrame(&gEnHeishiDyingGuardAnim_00C444);
             Animation_Change(&this->skelAnime, &gEnHeishiDyingGuardAnim_00C444, 1.0f, 0.0f, (s16)frames, ANIMMODE_LOOP,
                              -10.0f);
             this->actor.textId = 0x7007;
             this->unk_282 = TEXT_STATE_EVENT;
             this->unk_284 = 1;
-            osSyncPrintf(VT_FGCOL(YELLOW) " ☆☆☆☆☆ デモ開始！ ☆☆☆☆☆ \n" VT_RST);
+            PRINTF(VT_FGCOL(YELLOW) T(" ☆☆☆☆☆ デモ開始！ ☆☆☆☆☆ \n", " ☆☆☆☆☆ Demo begins! ☆☆☆☆☆ \n") VT_RST);
         } else {
             this->actor.textId = 0x7008;
             this->unk_282 = TEXT_STATE_DONE;
-            osSyncPrintf(VT_FGCOL(BLUE) " ☆☆☆☆☆ 返事なし ☆☆☆☆☆ \n" VT_RST);
+            PRINTF(VT_FGCOL(BLUE) T(" ☆☆☆☆☆ 返事なし ☆☆☆☆☆ \n", " ☆☆☆☆☆ No reply ☆☆☆☆☆ \n") VT_RST);
         }
         this->actionFunc = func_80A56874;
     } else {
@@ -302,7 +321,7 @@ void func_80A56B40(EnHeishi4* this, PlayState* play) {
     }
     if (MaskReaction_GetTextId(play, sMaskReactionSets[reactionOffset]) != 0) {
         if (this->unk_2B4 == 0) {
-            if ((this->type == HEISHI4_AT_KAKRIKO_ENTRANCE) || (this->type == HEISHI4_AT_IMPAS_HOUSE)) {
+            if ((this->type == HEISHI4_AT_KAKARIKO_ENTRANCE) || (this->type == HEISHI4_AT_IMPAS_HOUSE)) {
                 this->actionFunc = func_80A563BC;
                 return;
             }
@@ -313,7 +332,7 @@ void func_80A56B40(EnHeishi4* this, PlayState* play) {
         }
     } else {
         if (this->unk_2B4 != 0) {
-            if ((this->type == HEISHI4_AT_KAKRIKO_ENTRANCE) || (this->type == HEISHI4_AT_IMPAS_HOUSE)) {
+            if ((this->type == HEISHI4_AT_KAKARIKO_ENTRANCE) || (this->type == HEISHI4_AT_IMPAS_HOUSE)) {
                 this->actionFunc = func_80A563BC;
                 return;
             }
@@ -324,7 +343,7 @@ void func_80A56B40(EnHeishi4* this, PlayState* play) {
         }
     }
     if (Actor_TalkOfferAccepted(&this->actor, play)) {
-        if ((this->type == HEISHI4_AT_KAKRIKO_ENTRANCE) || (this->type == HEISHI4_AT_IMPAS_HOUSE)) {
+        if ((this->type == HEISHI4_AT_KAKARIKO_ENTRANCE) || (this->type == HEISHI4_AT_IMPAS_HOUSE)) {
             this->unk_284 = 1;
             this->actionFunc = func_80A563BC;
             return;

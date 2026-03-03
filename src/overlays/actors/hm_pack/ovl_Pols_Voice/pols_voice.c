@@ -5,9 +5,22 @@
  */
 
 #include "pols_voice.h"
-#include "assets_hm_pack/objects/object_pols_voice/object_pols_voice.h"
 
-#define FLAGS (ACTOR_FLAG_0 | ACTOR_FLAG_2 | ACTOR_FLAG_4 | ACTOR_FLAG_5)
+#include "actor.h"
+#include "collision_check.h"
+#include "effect.h"
+#include "ocarina.h"
+#include "play_state.h"
+#include "player.h"
+#include "save.h"
+#include "sfx.h"
+#include "sys_matrix.h"
+#include "z_en_item00.h"
+#include "z_lib.h"
+
+#include "assets/objects/hm_pack/object_pols_voice/object_pols_voice.h"
+
+#define FLAGS (ACTOR_FLAG_ATTENTION_ENABLED | ACTOR_FLAG_HOSTILE | ACTOR_FLAG_UPDATE_CULLING_DISABLED | ACTOR_FLAG_DRAW_CULLING_DISABLED)
 
 void PolsVoice_Init(Actor* thisx, PlayState* play);
 void PolsVoice_Destroy(Actor* thisx, PlayState* play);
@@ -65,7 +78,7 @@ static DamageTable sDamageTable = {
     /* Unknown 2     */ DMG_ENTRY(0, POLSVOICE_DMGEFF_NONE),
 };
 
-const ActorInit Pols_Voice_InitVars = {
+const ActorProfile Pols_Voice_Profile = {
     ACTOR_POLS_VOICE,
     ACTORCAT_ENEMY,
     FLAGS,
@@ -79,7 +92,7 @@ const ActorInit Pols_Voice_InitVars = {
 
 static ColliderCylinderInit sCylinderInit = {
     {
-        COLTYPE_HIT5,
+        COL_MATERIAL_HIT5,
         AT_ON | AT_TYPE_ENEMY,
         AC_ON | AC_TYPE_PLAYER,
         OC1_ON | OC1_TYPE_ALL,
@@ -87,11 +100,11 @@ static ColliderCylinderInit sCylinderInit = {
         COLSHAPE_CYLINDER,
     },
     {
-        ELEMTYPE_UNK0,
+        ELEM_MATERIAL_UNK0,
         { 0xFFCFFFFF, 0x08, 0x08 },
         { 0xFFCFFFFF, 0x00, 0x00 },
-        TOUCH_ON | TOUCH_SFX_NORMAL,
-        BUMP_ON,
+        ATELEM_ON | ATELEM_SFX_NORMAL,
+        ACELEM_ON,
         OCELEM_ON,
     },
     { 40, 75, 0, { 0, 0, 0 } },
@@ -170,7 +183,7 @@ void PolsVoice_SetupGnaw(PolsVoice* this, PlayState* play) {
     this->actor.velocity.y = 0.0f;
     this->actor.gravity = 0.0f;
     this->actor.shape.rot.x = DEG_TO_BINANG(-25.0f);
-    this->actor.flags &= ~ACTOR_FLAG_0;
+    this->actor.flags &= ~ACTOR_FLAG_ATTENTION_ENABLED;
     Animation_Change(&this->skelAnime, &gPolsVoiceSkelGrabAnim, 1.0f, 0.0f, 12.0f, ANIMMODE_ONCE, 0.0f);
     this->actionFunc = PolsVoice_Gnaw;
 }
@@ -183,7 +196,7 @@ void PolsVoice_SetupEndGnaw(PolsVoice* this, PlayState* play) {
     this->actor.velocity.y = 4.0f;
     this->actor.gravity = -1.0f;
     this->actor.shape.rot.x = 0.0f;
-    this->actor.flags |= ACTOR_FLAG_0;
+    this->actor.flags |= ACTOR_FLAG_ATTENTION_ENABLED;
     Animation_MorphToPlayOnce(&this->skelAnime, &gPolsVoiceSkelHopAnim, -4.0f);
     Actor_PlaySfx(&this->actor, NA_SE_EN_RIZA_JUMP);
     this->actionFunc = PolsVoice_EndGnaw;
@@ -204,7 +217,7 @@ void PolsVoice_SetupStunned(PolsVoice* this, PlayState* play) {
 
 void PolsVoice_SetupDie(PolsVoice* this, PlayState* play) {
     this->actor.speed = 0.0f;
-    this->actor.flags &= ~ACTOR_FLAG_0;
+    this->actor.flags &= ~ACTOR_FLAG_ATTENTION_ENABLED;
     this->actor.world.rot.y = this->actor.shape.rot.y = this->actor.yawTowardsPlayer;
     Animation_MorphToPlayOnce(&this->skelAnime, &gPolsVoiceSkelDieAnim, -3.0f);
     this->actionFunc = PolsVoice_Die;
@@ -377,8 +390,8 @@ void PolsVoice_Die(PolsVoice* this, PlayState* play) {
 }
 
 void PolsVoice_CheckDrowned(PolsVoice* this, PlayState* play) {
-    if (!this->drowned && (this->actor.bgCheckFlags & BGCHECKFLAG_WATER) && (this->actor.yDistToWater > 5.0f)) {
-        Actor_SetDropFlag(&this->actor, &this->collider.info, true);
+    if (!this->drowned && (this->actor.bgCheckFlags & BGCHECKFLAG_WATER) && (this->actor.depthInWater > 5.0f)) {
+        Actor_SetDropFlag(&this->actor, &this->collider.elem, true);
         Actor_PlaySfx(&this->actor, NA_SE_EN_DEADHAND_DEAD);
         Enemy_StartFinishingBlow(play, &this->actor);
         this->drowned = true;
@@ -396,10 +409,10 @@ void PolsVoice_CheckDamage(PolsVoice* this, PlayState* play) {
         if (this->invincibilityTimer == 0) {
             this->invincibilityTimer = 40;
         }
-        Actor_SetDropFlag(&this->actor, &this->collider.info, true);
+        Actor_SetDropFlag(&this->actor, &this->collider.elem, true);
 
         if (this->actionFunc != PolsVoice_Die && this->actionFunc != PolsVoice_Damaged && !this->isGnawing) {
-            switch (this->actor.colChkInfo.damageEffect) {
+            switch (this->actor.colChkInfo.damageReaction) {
                 case POLSVOICE_DMGEFF_STUN:
                     if (this->actor.colChkInfo.health > 1) {
                         Actor_PlaySfx(&this->actor, NA_SE_EN_GOMA_JR_FREEZE);
@@ -465,7 +478,7 @@ void PolsVoice_Update(Actor* thisx, PlayState* play) {
     }
 }
 
-void PolsVoice_PostLimbDraw(PlayState* play, s32 limbIndex, Gfx** dList, Vec3s* rot, void* thisx, Gfx** gfx) {
+void PolsVoice_PostLimbDraw(PlayState* play, s32 limbIndex, Gfx** dList, Vec3s* rot, void* thisx) {
     PolsVoice* this = (PolsVoice*)thisx;
 
     if (limbIndex == GPOLSVOICESKEL_HEAD_LIMB) {

@@ -2,7 +2,8 @@
  * Unused. A very simple utility for drawing text on screen.
  */
 
-#include "global.h"
+#include "gfx.h"
+#include "printf.h"
 
 // how big to draw the characters on screen
 #define DISP_CHAR_WIDTH 8
@@ -65,7 +66,7 @@ void Moji_DrawChar(GraphicsContext* gfxCtx, char c) {
     OPEN_DISPS(gfxCtx, "../z_moji.c", 86);
 
     if ((uintptr_t)gMojiFontTLUTs & 0xF) {
-        osSyncPrintf("moji_tlut --> %X\n", gMojiFontTLUTs);
+        PRINTF("moji_tlut --> %X\n", gMojiFontTLUTs);
     }
 
     if (sCurTLUTIndex != GET_CHAR_TLUT_INDEX(c)) {
@@ -91,7 +92,7 @@ void Moji_DrawString(GraphicsContext* gfxCtx, const char* str) {
     OPEN_DISPS(gfxCtx, "../z_moji.c", 137);
 
     if ((uintptr_t)gMojiFontTex & 0xF) {
-        osSyncPrintf("font_ff --> %X\n", gMojiFontTex);
+        PRINTF("font_ff --> %X\n", gMojiFontTex);
     }
 
     gDPPipeSync(POLY_OPA_DISP++);

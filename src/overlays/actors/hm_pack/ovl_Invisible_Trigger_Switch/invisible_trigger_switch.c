@@ -8,6 +8,11 @@
  */
 
 #include "invisible_trigger_switch.h"
+
+#include "actor.h"
+#include "play_state.h"
+#include "player.h"
+
 #include "assets/objects/gameplay_keep/gameplay_keep.h"
 
 #define FLAGS (0)
@@ -20,7 +25,7 @@ void InvisibleTriggerSwitch_Update(Actor* thisx, PlayState* play);
 
 void InvisibleTriggerSwitch_WaitForPlayer(InvisibleTriggerSwitch* this, PlayState* play);
 
-const ActorInit Invisible_Trigger_Switch_InitVars = {
+const ActorProfile Invisible_Trigger_Switch_Profile = {
     ACTOR_INVISIBLE_TRIGGER_SWITCH,
     ACTORCAT_BG,
     FLAGS,

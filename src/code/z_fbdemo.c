@@ -9,7 +9,15 @@
  * @note The only coded effect has a visual effect to blend the tiles to a single point, which looks like the screen
  * gets sucked into.
  */
-#include "global.h"
+#include "transition_tile.h"
+
+#include "libc64/malloc.h"
+#include "libc64/sleep.h"
+#include "libu64/debug.h"
+#include "gfx.h"
+#include "printf.h"
+#include "z_math.h"
+#include "transition_instances.h"
 
 // color framebuffer
 extern u16 D_0F000000[];
@@ -40,6 +48,22 @@ Gfx sTransTileSetupDL[] = {
     gsSPEndDisplayList(),
 };
 
+#define SET_VERTEX(vtx, x, y, z, s, t, nx, ny, nz, alpha) \
+    {                                                     \
+        Vtx_tn* vtxn = &(vtx)->n;                         \
+        vtxn->ob[0] = (x);                                \
+        vtxn->ob[1] = (y);                                \
+        vtxn->ob[2] = (z);                                \
+        vtxn->flag = 0;                                   \
+        vtxn->tc[0] = (s);                                \
+        vtxn->tc[1] = (t);                                \
+        vtxn->n[0] = (nx);                                \
+        vtxn->n[1] = (ny);                                \
+        vtxn->n[2] = (nz);                                \
+        vtxn->a = (alpha);                                \
+    }                                                     \
+    (void)0
+
 void TransitionTile_InitGraphics(TransitionTile* this) {
     s32 frame;
     s32 col;
@@ -61,20 +85,7 @@ void TransitionTile_InitGraphics(TransitionTile* this) {
         for (row = 0; row < this->rows + 1; row++) {
             colTex = 0;
             for (col = 0; col < this->cols + 1; col++) {
-                Vtx_tn* vtxn = &vtx->n;
-
-                vtx++;
-                vtxn->tc[0] = colTex << 6;
-                vtxn->ob[0] = col * 0x20;
-                vtxn->ob[1] = row * 0x20;
-                vtxn->ob[2] = -5;
-                vtxn->flag = 0;
-                vtxn->tc[1] = rowTex << 6;
-                vtxn->n[0] = 0;
-                vtxn->n[1] = 0;
-                vtxn->n[2] = 120;
-                vtxn->a = 255;
-
+                SET_VERTEX(vtx++, col * 0x20, row * 0x20, -5, colTex << 6, rowTex << 6, 0, 0, 120, 255);
                 colTex += 0x20;
             }
 
@@ -87,8 +98,8 @@ void TransitionTile_InitGraphics(TransitionTile* this) {
     for (row = 0; row < this->rows; row++) {
         gSPVertex(gfx++, SEGMENT_ADDR(0xA, (u32)row * (this->cols + 1) * sizeof(Vtx)), 2 * (this->cols + 1), 0);
 
-        colTex = 0;
         col2 = 0;
+        colTex = 0;
         col = 0;
         while (col < this->cols) {
             gDPPipeSync(gfx++);
@@ -128,8 +139,8 @@ void TransitionTile_InitVtxData(TransitionTile* this) {
 }
 
 void TransitionTile_Destroy(TransitionTile* this) {
-    osSyncPrintf("fbdemo_cleanup(%08x)\n", this);
-    osSyncPrintf("msleep(100);\n");
+    PRINTF("fbdemo_cleanup(%08x)\n", this);
+    PRINTF("msleep(100);\n");
     Sleep_Msec(100);
 
     if (this->vtxData != NULL) {
@@ -151,7 +162,7 @@ void TransitionTile_Destroy(TransitionTile* this) {
 }
 
 TransitionTile* TransitionTile_Init(TransitionTile* this, s32 cols, s32 rows) {
-    osSyncPrintf("fbdemo_init(%08x, %d, %d)\n", this, cols, rows);
+    PRINTF("fbdemo_init(%08x, %d, %d)\n", this, cols, rows);
     bzero(this, sizeof(TransitionTile));
     this->frame = 0;
     this->cols = cols;
@@ -162,7 +173,7 @@ TransitionTile* TransitionTile_Init(TransitionTile* this, s32 cols, s32 rows) {
     this->gfx = SYSTEM_ARENA_MALLOC((this->rows * (1 + this->cols * 9) + 2) * sizeof(Gfx), "../z_fbdemo.c", 198);
 
     if ((this->vtxData == NULL) || (this->vtxFrame1 == NULL) || (this->vtxFrame2 == NULL) || (this->gfx == NULL)) {
-        osSyncPrintf("fbdemo_init allocation error\n");
+        PRINTF("fbdemo_init allocation error\n");
         if (this->vtxData != NULL) {
             SYSTEM_ARENA_FREE(this->vtxData, "../z_fbdemo.c", 202);
             this->vtxData = NULL;

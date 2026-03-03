@@ -2,9 +2,11 @@
 #define Z_RAT_H
 
 #include "ultra64.h"
-#include "global.h"
+#include "actor.h"
+#include "collision_check.h"
+#include "play_state.h"
 
-#include "assets_hm_pack/objects/object_rat/object_rat.h"
+#include "assets/objects/hm_pack/object_rat/object_rat.h"
 
 struct Rat;
 

@@ -5,8 +5,22 @@
  */
 
 #include "z_en_fish.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+
+#include "libc64/qrand.h"
+#include "array_count.h"
+#include "gfx.h"
+#include "gfx_setupdl.h"
+#include "ichain.h"
+#include "printf.h"
+#include "sfx.h"
 #include "terminal.h"
+#include "translation.h"
+#include "z_lib.h"
+#include "item.h"
+#include "play_state.h"
+#include "player.h"
+
+#include "assets/objects/gameplay_keep/gameplay_keep.h"
 
 #define FLAGS 0
 
@@ -37,14 +51,14 @@ static Actor* D_80A17010 = NULL;
 static f32 D_80A17014 = 0.0f;
 static f32 D_80A17018 = 0.0f;
 
-static ColliderJntSphElementInit sJntSphElementsInit[1] = {
+static ColliderJntSphElementInit sJntSphElementsInit[] = {
     {
         {
-            ELEMTYPE_UNK0,
-            { 0x00000000, 0x00, 0x00 },
-            { 0xFFCFFFFF, 0x00, 0x00 },
-            TOUCH_NONE,
-            BUMP_NONE,
+            ELEM_MATERIAL_UNK0,
+            { 0x00000000, HIT_SPECIAL_EFFECT_NONE, 0x00 },
+            { 0xFFCFFFFF, HIT_BACKLASH_NONE, 0x00 },
+            ATELEM_NONE,
+            ACELEM_NONE,
             OCELEM_ON,
         },
         { 0, { { 0, 0, 0 }, 5 }, 100 },
@@ -53,18 +67,18 @@ static ColliderJntSphElementInit sJntSphElementsInit[1] = {
 
 static ColliderJntSphInit sJntSphInit = {
     {
-        COLTYPE_NONE,
+        COL_MATERIAL_NONE,
         AT_NONE,
         AC_NONE,
         OC1_ON | OC1_TYPE_ALL,
         OC2_TYPE_1,
         COLSHAPE_JNTSPH,
     },
-    1,
+    ARRAY_COUNT(sJntSphElementsInit),
     sJntSphElementsInit,
 };
 
-ActorInit En_Fish_InitVars = {
+ActorProfile En_Fish_Profile = {
     /**/ ACTOR_EN_FISH,
     /**/ ACTORCAT_ITEMACTION,
     /**/ FLAGS,
@@ -78,9 +92,9 @@ ActorInit En_Fish_InitVars = {
 
 static InitChainEntry sInitChain[] = {
     ICHAIN_VEC3F_DIV1000(scale, 10, ICHAIN_CONTINUE),
-    ICHAIN_F32(uncullZoneForward, 900, ICHAIN_CONTINUE),
-    ICHAIN_F32(uncullZoneScale, 40, ICHAIN_CONTINUE),
-    ICHAIN_F32(uncullZoneDownward, 700, ICHAIN_STOP),
+    ICHAIN_F32(cullingVolumeDistance, 900, ICHAIN_CONTINUE),
+    ICHAIN_F32(cullingVolumeScale, 40, ICHAIN_CONTINUE),
+    ICHAIN_F32(cullingVolumeDownward, 700, ICHAIN_STOP),
 };
 
 f32 EnFish_XZDistanceSquared(Vec3f* v1, Vec3f* v2) {
@@ -116,7 +130,7 @@ void EnFish_SetCutsceneData(EnFish* this) {
         thisx->shape.yOffset = 600.0f;
         D_80A17014 = 10.0f;
         D_80A17018 = 0.0f;
-        thisx->flags |= ACTOR_FLAG_4;
+        thisx->flags |= ACTOR_FLAG_UPDATE_CULLING_DISABLED;
         EnFish_SetOutOfWaterAnimation(this);
     }
 }
@@ -134,13 +148,13 @@ void EnFish_Init(Actor* thisx, PlayState* play) {
     Actor_ProcessInitChain(&this->actor, sInitChain);
     SkelAnime_InitFlex(play, &this->skelAnime, &gFishSkel, &gFishInWaterAnim, this->jointTable, this->morphTable, 7);
     Collider_InitJntSph(play, &this->collider);
-    Collider_SetJntSph(play, &this->collider, &this->actor, &sJntSphInit, this->colliderItems);
+    Collider_SetJntSph(play, &this->collider, &this->actor, &sJntSphInit, this->colliderElements);
     this->actor.colChkInfo.mass = 50;
     this->slowPhase = Rand_ZeroOne() * (0xFFFF + 0.5f);
     this->fastPhase = Rand_ZeroOne() * (0xFFFF + 0.5f);
 
     if (params == FISH_DROPPED) {
-        this->actor.flags |= ACTOR_FLAG_4;
+        this->actor.flags |= ACTOR_FLAG_UPDATE_CULLING_DISABLED;
         ActorShape_Init(&this->actor.shape, 0.0f, ActorShadow_DrawCircle, 8.0f);
         EnFish_Dropped_SetupFall(this);
     } else if (params == FISH_SWIMMING_UNIQUE) {
@@ -383,10 +397,10 @@ void EnFish_Dropped_Fall(EnFish* this, PlayState* play) {
         EnFish_Dropped_SetupSwimAway(this);
     } else if ((this->timer <= 0) && (this->actor.params == FISH_DROPPED) &&
                (this->actor.floorHeight < BGCHECK_Y_MIN + 10.0f)) {
-        osSyncPrintf(VT_COL(YELLOW, BLACK));
-        // "BG missing? Running Actor_delete"
-        osSyncPrintf("BG 抜け？ Actor_delete します(%s %d)\n", "../z_en_sakana.c", 822);
-        osSyncPrintf(VT_RST);
+        PRINTF_COLOR_WARNING();
+        PRINTF(T("BG 抜け？ Actor_delete します(%s %d)\n", "BG missing? Running Actor_delete (%s %d)\n"),
+               "../z_en_sakana.c", 822);
+        PRINTF_RST();
         Actor_Kill(&this->actor);
     }
 }
@@ -472,11 +486,11 @@ void EnFish_Dropped_FlopOnGround(EnFish* this, PlayState* play) {
 
 void EnFish_Dropped_SetupSwimAway(EnFish* this) {
     this->actor.home.pos = this->actor.world.pos;
-    this->actor.flags |= ACTOR_FLAG_4;
-    this->timer = 200;
     this->actor.gravity = 0.0f;
     this->actor.minVelocityY = 0.0f;
     this->actor.shape.yOffset = 0.0f;
+    this->actor.flags |= ACTOR_FLAG_UPDATE_CULLING_DISABLED;
+    this->timer = 200;
     EnFish_SetInWaterAnimation(this);
     this->actionFunc = EnFish_Dropped_SwimAway;
     this->unk_250 = UPDBGCHECKINFO_FLAG_0 | UPDBGCHECKINFO_FLAG_2;
@@ -624,10 +638,12 @@ void EnFish_UpdateCutscene(EnFish* this, PlayState* play) {
     f32 lerp;
     s32 bgId;
 
+    if (play) {}
+
     if (cue == NULL) {
-        // "Warning : DEMO ended without dousa (action) 3 termination being called"
-        osSyncPrintf("Warning : dousa 3 消滅 が呼ばれずにデモが終了した(%s %d)(arg_data 0x%04x)\n", "../z_en_sakana.c",
-                     1169, this->actor.params);
+        PRINTF(T("Warning : dousa 3 消滅 が呼ばれずにデモが終了した(%s %d)(arg_data 0x%04x)\n",
+                 "Warning : Demo ended without action 3 being called (%s %d)(arg_data 0x%04x)\n"),
+               "../z_en_sakana.c", 1169, this->actor.params);
         EnFish_ClearCutsceneData(this);
         Actor_Kill(&this->actor);
         return;
@@ -644,14 +660,13 @@ void EnFish_UpdateCutscene(EnFish* this, PlayState* play) {
             EnFish_Cutscene_WiggleFlyingThroughAir(this, play);
             break;
         case 3:
-            // "DEMO fish termination"
-            osSyncPrintf("デモ魚消滅\n");
+            PRINTF(T("デモ魚消滅\n", "Demo fish disappearance\n"));
             EnFish_ClearCutsceneData(this);
             Actor_Kill(&this->actor);
             return;
         default:
-            // "Improper DEMO action"
-            osSyncPrintf("不正なデモ動作(%s %d)(arg_data 0x%04x)\n", "../z_en_sakana.c", 1200, this->actor.params);
+            PRINTF(T("不正なデモ動作(%s %d)(arg_data 0x%04x)\n", "Incorrect demo behavior (%s %d)(arg_data 0x%04x)\n"),
+                   "../z_en_sakana.c", 1200, this->actor.params);
             break;
     }
 

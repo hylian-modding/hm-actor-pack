@@ -1,14 +1,24 @@
-#include "global.h"
+#include "libc64/math64.h"
+#include "gfx.h"
+#if DEBUG_FEATURES
+#include "fault.h"
+#endif
+#include "printf.h"
+#include "sys_matrix.h"
+#include "ultra64.h"
+#include "z_lib.h"
+#include "game.h"
+#include "skin_matrix.h"
 
 // clang-format off
-Mtx gMtxClear = gdSPDefMtx(
+Mtx gIdentityMtx = gdSPDefMtx(
     1.0f, 0.0f, 0.0f, 0.0f,
     0.0f, 1.0f, 0.0f, 0.0f,
     0.0f, 0.0f, 1.0f, 0.0f,
     0.0f, 0.0f, 0.0f, 1.0f
 );
 
-MtxF gMtxFClear = {
+MtxF gIdentityMtxF = {
     1.0f, 0.0f, 0.0f, 0.0f,
     0.0f, 1.0f, 0.0f, 0.0f,
     0.0f, 0.0f, 1.0f, 0.0f,
@@ -603,13 +613,13 @@ Mtx* Matrix_MtxFToMtx(MtxF* src, Mtx* dest) {
     return dest;
 }
 
-#ifdef OOT_DEBUG
+#if DEBUG_FEATURES
 
-Mtx* Matrix_ToMtx(Mtx* dest, char* file, s32 line) {
+Mtx* Matrix_ToMtx(Mtx* dest, const char* file, int line) {
     return Matrix_MtxFToMtx(MATRIX_CHECK_FLOATS(sCurrentMatrix, file, line), dest);
 }
 
-Mtx* Matrix_NewMtx(GraphicsContext* gfxCtx, char* file, s32 line) {
+Mtx* Matrix_Finalize(GraphicsContext* gfxCtx, const char* file, int line) {
     return Matrix_ToMtx(GRAPH_ALLOC(gfxCtx, sizeof(Mtx)), file, line);
 }
 
@@ -619,11 +629,11 @@ Mtx* Matrix_ToMtx(Mtx* dest) {
     return Matrix_MtxFToMtx(sCurrentMatrix, dest);
 }
 
-Mtx* Matrix_NewMtx(GraphicsContext* gfxCtx) {
+Mtx* Matrix_Finalize(GraphicsContext* gfxCtx) {
     return Matrix_ToMtx(GRAPH_ALLOC(gfxCtx, sizeof(Mtx)));
 }
 
-#endif /* OOT_DEBUG */
+#endif /* DEBUG_FEATURES */
 
 Mtx* Matrix_MtxFToNewMtx(MtxF* src, GraphicsContext* gfxCtx) {
     return Matrix_MtxFToMtx(src, GRAPH_ALLOC(gfxCtx, sizeof(Mtx)));
@@ -969,19 +979,20 @@ void Matrix_RotateAxis(f32 angle, Vec3f* axis, u8 mode) {
     }
 }
 
-MtxF* Matrix_CheckFloats(MtxF* mf, char* file, s32 line) {
+#if DEBUG_FEATURES
+MtxF* Matrix_CheckFloats(MtxF* mf, const char* file, int line) {
     s32 i, j;
 
     for (i = 0; i < 4; i++) {
         for (j = 0; j < 4; j++) {
             if (!(-32768.0f <= mf->mf[i][j]) || !(mf->mf[i][j] < 32768.0f)) {
-                osSyncPrintf("%s %d: [%s] =\n"
-                             "/ %12.6f %12.6f %12.6f %12.6f \\\n"
-                             "| %12.6f %12.6f %12.6f %12.6f |\n"
-                             "| %12.6f %12.6f %12.6f %12.6f |\n"
-                             "\\ %12.6f %12.6f %12.6f %12.6f /\n",
-                             file, line, "mf", mf->xx, mf->xy, mf->xz, mf->xw, mf->yx, mf->yy, mf->yz, mf->yw, mf->zx,
-                             mf->zy, mf->zz, mf->zw, mf->wx, mf->wy, mf->wz, mf->ww);
+                PRINTF("%s %d: [%s] =\n"
+                       "/ %12.6f %12.6f %12.6f %12.6f \\\n"
+                       "| %12.6f %12.6f %12.6f %12.6f |\n"
+                       "| %12.6f %12.6f %12.6f %12.6f |\n"
+                       "\\ %12.6f %12.6f %12.6f %12.6f /\n",
+                       file, line, "mf", mf->xx, mf->xy, mf->xz, mf->xw, mf->yx, mf->yy, mf->yz, mf->yw, mf->zx, mf->zy,
+                       mf->zz, mf->zw, mf->wx, mf->wy, mf->wz, mf->ww);
                 Fault_AddHungupAndCrash(file, line);
             }
         }
@@ -989,20 +1000,21 @@ MtxF* Matrix_CheckFloats(MtxF* mf, char* file, s32 line) {
 
     return mf;
 }
+#endif
 
 void Matrix_SetTranslateUniformScaleMtxF(MtxF* mf, f32 scale, f32 translateX, f32 translateY, f32 translateZ) {
+    mf->xx = scale;
     mf->yx = 0.0f;
     mf->zx = 0.0f;
     mf->wx = 0.0f;
     mf->xy = 0.0f;
+    mf->yy = scale;
     mf->zy = 0.0f;
     mf->wy = 0.0f;
     mf->xz = 0.0f;
     mf->yz = 0.0f;
-    mf->wz = 0.0f;
-    mf->xx = scale;
-    mf->yy = scale;
     mf->zz = scale;
+    mf->wz = 0.0f;
     mf->xw = translateX;
     mf->yw = translateY;
     mf->zw = translateZ;
@@ -1013,7 +1025,7 @@ void Matrix_SetTranslateUniformScaleMtx(Mtx* mtx, f32 scale, f32 translateX, f32
     MtxF mf;
 
     Matrix_SetTranslateUniformScaleMtxF(&mf, scale, translateX, translateY, translateZ);
-    guMtxF2L(&mf, mtx);
+    guMtxF2L(mf.mf, mtx);
 }
 
 void Matrix_SetTranslateUniformScaleMtx2(Mtx* mtx, f32 scale, f32 translateX, f32 translateY, f32 translateZ) {

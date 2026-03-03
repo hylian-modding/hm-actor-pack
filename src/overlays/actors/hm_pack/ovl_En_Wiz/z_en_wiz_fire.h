@@ -2,7 +2,9 @@
 #define Z_EN_WIZ_FIRE_H
 
 #include "ultra64.h"
-#include "global.h"
+#include "actor.h"
+#include "collision_check.h"
+#include "play_state.h"
 
 typedef enum {
     /* 0 */ EN_WIZ_FIRE_TYPE_MAGIC_PROJECTILE,

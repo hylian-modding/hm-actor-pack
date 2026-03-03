@@ -5,8 +5,13 @@
  * buffer copies and coverage drawing. Also contains software implementations of the Video Interface anti-aliasing and
  * divot filters.
  */
-#include "global.h"
+#include "libu64/debug.h"
 #include "alloca.h"
+#include "color.h"
+#include "gfx.h"
+#include "prerender.h"
+#include "printf.h"
+#include "regs.h"
 
 void PreRender_SetValuesSave(PreRender* this, u32 width, u32 height, void* fbuf, void* zbuf, void* cvg) {
     this->widthSave = width;
@@ -53,10 +58,10 @@ void PreRender_CopyImage(PreRender* this, Gfx** gfxP, void* img, void* imgDst) {
     s32 curRow;
     s32 nRows;
 
-    LogUtils_CheckNullPointer("this", this, "../PreRender.c", 215);
-    LogUtils_CheckNullPointer("glistpp", gfxP, "../PreRender.c", 216);
+    LOG_UTILS_CHECK_NULL_POINTER("this", this, "../PreRender.c", 215);
+    LOG_UTILS_CHECK_NULL_POINTER("glistpp", gfxP, "../PreRender.c", 216);
     gfx = *gfxP;
-    LogUtils_CheckNullPointer("glistp", gfx, "../PreRender.c", 218);
+    LOG_UTILS_CHECK_NULL_POINTER("glistp", gfx, "../PreRender.c", 218);
 
     gDPPipeSync(gfx++);
     // Configure the cycle type to COPY mode, disable blending
@@ -80,7 +85,9 @@ void PreRender_CopyImage(PreRender* this, Gfx** gfxP, void* img, void* imgDst) {
         s32 lrt;
 
         // Make sure that we don't load past the end of the source image
-        nRows = MIN(rowsRemaining, nRows);
+        if (nRows > rowsRemaining) {
+            nRows = rowsRemaining;
+        }
 
         // Determine the upper and lower bounds of the rect to draw
         ult = curRow;
@@ -95,8 +102,8 @@ void PreRender_CopyImage(PreRender* this, Gfx** gfxP, void* img, void* imgDst) {
         gSPTextureRectangle(gfx++, uls << 2, ult << 2, lrs << 2, lrt << 2, G_TX_RENDERTILE, uls << 5, ult << 5, 4 << 10,
                             1 << 10);
 
-        rowsRemaining -= nRows;
         curRow += nRows;
+        rowsRemaining -= nRows;
     }
 
     gDPPipeSync(gfx++);
@@ -114,10 +121,10 @@ void PreRender_CopyImageRegionImpl(PreRender* this, Gfx** gfxP) {
     s32 curRow;
     s32 nRows;
 
-    LogUtils_CheckNullPointer("this", this, "../PreRender.c", 278);
-    LogUtils_CheckNullPointer("glistpp", gfxP, "../PreRender.c", 279);
+    LOG_UTILS_CHECK_NULL_POINTER("this", this, "../PreRender.c", 278);
+    LOG_UTILS_CHECK_NULL_POINTER("glistpp", gfxP, "../PreRender.c", 279);
     gfx = *gfxP;
-    LogUtils_CheckNullPointer("glistp", gfx, "../PreRender.c", 281);
+    LOG_UTILS_CHECK_NULL_POINTER("glistp", gfx, "../PreRender.c", 281);
 
     gDPPipeSync(gfx++);
     // Configure the cycle type to COPY mode, disable blending
@@ -138,14 +145,18 @@ void PreRender_CopyImageRegionImpl(PreRender* this, Gfx** gfxP) {
         s32 ult;
         s32 lrt;
         s32 uly;
+        s32 lry;
 
         // Make sure that we don't load past the end of the source image
-        nRows = MIN(rowsRemaining, nRows);
+        if (nRows > rowsRemaining) {
+            nRows = rowsRemaining;
+        }
 
         // Determine the upper and lower bounds of the rect to draw
         ult = this->ulySave + curRow;
         lrt = ult + nRows - 1;
         uly = this->uly + curRow;
+        lry = uly + nRows - 1;
 
         // Load a horizontal strip of the source image in RGBA16 format
         gDPLoadTextureTile(gfx++, this->fbufSave, G_IM_FMT_RGBA, G_IM_SIZ_16b, this->widthSave, this->height - 1,
@@ -153,11 +164,11 @@ void PreRender_CopyImageRegionImpl(PreRender* this, Gfx** gfxP) {
                            G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMASK, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
 
         // Draw that horizontal strip to the destination image, dsdx is 4 << 10 for COPY mode
-        gSPTextureRectangle(gfx++, this->ulx << 2, uly << 2, this->lrx << 2, (uly + nRows - 1) << 2, G_TX_RENDERTILE,
+        gSPTextureRectangle(gfx++, this->ulx << 2, uly << 2, this->lrx << 2, lry << 2, G_TX_RENDERTILE,
                             this->ulxSave << 5, ult << 5, 4 << 10, 1 << 10);
 
-        rowsRemaining -= nRows;
         curRow += nRows;
+        rowsRemaining -= nRows;
     }
 
     // Reset the color image and scissor
@@ -177,10 +188,10 @@ void func_800C170C(PreRender* this, Gfx** gfxP, void* buf, void* bufSave, u32 r,
     s32 curRow;
     s32 nRows;
 
-    LogUtils_CheckNullPointer("this", this, "../PreRender.c", 343);
-    LogUtils_CheckNullPointer("glistpp", gfxP, "../PreRender.c", 344);
+    LOG_UTILS_CHECK_NULL_POINTER("this", this, "../PreRender.c", 343);
+    LOG_UTILS_CHECK_NULL_POINTER("glistpp", gfxP, "../PreRender.c", 344);
     gfx = *gfxP;
-    LogUtils_CheckNullPointer("glistp", gfx, "../PreRender.c", 346);
+    LOG_UTILS_CHECK_NULL_POINTER("glistp", gfx, "../PreRender.c", 346);
 
     gDPPipeSync(gfx++);
     // Set the cycle type to 1-cycle mode to use the color combiner
@@ -211,7 +222,9 @@ void func_800C170C(PreRender* this, Gfx** gfxP, void* buf, void* bufSave, u32 r,
         s32 lrt;
 
         // Make sure that we don't load past the end of the source image
-        nRows = MIN(rowsRemaining, nRows);
+        if (nRows > rowsRemaining) {
+            nRows = rowsRemaining;
+        }
 
         // Determine the upper and lower bounds of the rect to draw
         ult = curRow;
@@ -226,8 +239,8 @@ void func_800C170C(PreRender* this, Gfx** gfxP, void* buf, void* bufSave, u32 r,
         gSPTextureRectangle(gfx++, uls << 2, ult << 2, (lrs + 1) << 2, (lrt + 1) << 2, G_TX_RENDERTILE, uls << 5,
                             ult << 5, 1 << 10, 1 << 10);
 
-        rowsRemaining -= nRows;
         curRow += nRows;
+        rowsRemaining -= nRows;
     }
 
     gDPPipeSync(gfx++);
@@ -256,16 +269,16 @@ void PreRender_CoverageRgba16ToI8(PreRender* this, Gfx** gfxP, void* img, void* 
     s32 curRow;
     s32 nRows;
 
-    LogUtils_CheckNullPointer("this", this, "../PreRender.c", 422);
-    LogUtils_CheckNullPointer("glistpp", gfxP, "../PreRender.c", 423);
+    LOG_UTILS_CHECK_NULL_POINTER("this", this, "../PreRender.c", 422);
+    LOG_UTILS_CHECK_NULL_POINTER("glistpp", gfxP, "../PreRender.c", 423);
     gfx = *gfxP;
-    LogUtils_CheckNullPointer("glistp", gfx, "../PreRender.c", 425);
+    LOG_UTILS_CHECK_NULL_POINTER("glistp", gfx, "../PreRender.c", 425);
 
     gDPPipeSync(gfx++);
     gDPSetOtherMode(gfx++,
                     G_AD_DISABLE | G_CD_DISABLE | G_CK_NONE | G_TC_FILT | G_TF_POINT | G_TT_NONE | G_TL_TILE |
                         G_TD_CLAMP | G_TP_NONE | G_CYC_1CYCLE | G_PM_NPRIMITIVE,
-                    G_AC_NONE | G_ZS_PRIM | G_RM_PASS | G_RM_OPA_CI2);
+                    G_AC_NONE | G_ZS_PRIM | G_RM_OPA_CI | G_RM_OPA_CI2);
 
     // Set the combiner to draw the texture as-is, discarding alpha channel
     gDPSetCombineLERP(gfx++, 0, 0, 0, TEXEL0, 0, 0, 0, 0, 0, 0, 0, TEXEL0, 0, 0, 0, 0);
@@ -287,7 +300,9 @@ void PreRender_CoverageRgba16ToI8(PreRender* this, Gfx** gfxP, void* img, void* 
         s32 lrt;
 
         // Make sure that we don't load past the end of the source image
-        nRows = MIN(rowsRemaining, nRows);
+        if (nRows > rowsRemaining) {
+            nRows = rowsRemaining;
+        }
 
         // Determine the upper and lower bounds of the rect to draw
         ult = curRow;
@@ -319,8 +334,8 @@ void PreRender_CoverageRgba16ToI8(PreRender* this, Gfx** gfxP, void* img, void* 
                             ult << 5, 1 << 10, 1 << 10);
 
         // Update the number of rows remaining and index of the row being drawn
-        rowsRemaining -= nRows;
         curRow += nRows;
+        rowsRemaining -= nRows;
     }
 
     // Reset the color image to the current framebuffer
@@ -333,8 +348,8 @@ void PreRender_CoverageRgba16ToI8(PreRender* this, Gfx** gfxP, void* img, void* 
  * Saves zbuf to zbufSave
  */
 void PreRender_SaveZBuffer(PreRender* this, Gfx** gfxP) {
-    LogUtils_CheckNullPointer("this->zbuf_save", this->zbufSave, "../PreRender.c", 481);
-    LogUtils_CheckNullPointer("this->zbuf", this->zbuf, "../PreRender.c", 482);
+    LOG_UTILS_CHECK_NULL_POINTER("this->zbuf_save", this->zbufSave, "../PreRender.c", 481);
+    LOG_UTILS_CHECK_NULL_POINTER("this->zbuf", this->zbuf, "../PreRender.c", 482);
 
     if ((this->zbufSave != NULL) && (this->zbuf != NULL)) {
         PreRender_CopyImage(this, gfxP, this->zbuf, this->zbufSave);
@@ -345,8 +360,8 @@ void PreRender_SaveZBuffer(PreRender* this, Gfx** gfxP) {
  * Saves fbuf to fbufSave
  */
 void PreRender_SaveFramebuffer(PreRender* this, Gfx** gfxP) {
-    LogUtils_CheckNullPointer("this->fbuf_save", this->fbufSave, "../PreRender.c", 495);
-    LogUtils_CheckNullPointer("this->fbuf", this->fbuf, "../PreRender.c", 496);
+    LOG_UTILS_CHECK_NULL_POINTER("this->fbuf_save", this->fbufSave, "../PreRender.c", 495);
+    LOG_UTILS_CHECK_NULL_POINTER("this->fbuf", this->fbuf, "../PreRender.c", 496);
 
     if ((this->fbufSave != NULL) && (this->fbuf != NULL)) {
         func_800C1AE8(this, gfxP, this->fbuf, this->fbufSave);
@@ -401,7 +416,7 @@ void PreRender_FetchFbufCoverage(PreRender* this, Gfx** gfxP) {
  */
 void PreRender_DrawCoverage(PreRender* this, Gfx** gfxP) {
     PreRender_FetchFbufCoverage(this, gfxP);
-    LogUtils_CheckNullPointer("this->cvg_save", this->cvgSave, "../PreRender.c", 532);
+    LOG_UTILS_CHECK_NULL_POINTER("this->cvg_save", this->cvgSave, "../PreRender.c", 532);
     if (this->cvgSave != NULL) {
         PreRender_CoverageRgba16ToI8(this, gfxP, this->fbuf, this->cvgSave);
     }
@@ -426,10 +441,10 @@ void func_800C213C(PreRender* this, Gfx** gfxP) {
     s32 rtile = 1;
 
     if (this->cvgSave != NULL) {
-        LogUtils_CheckNullPointer("this", this, "../PreRender.c", 563);
-        LogUtils_CheckNullPointer("glistpp", gfxP, "../PreRender.c", 564);
+        LOG_UTILS_CHECK_NULL_POINTER("this", this, "../PreRender.c", 563);
+        LOG_UTILS_CHECK_NULL_POINTER("glistpp", gfxP, "../PreRender.c", 564);
         gfx = *gfxP;
-        LogUtils_CheckNullPointer("glistp", gfx, "../PreRender.c", 566);
+        LOG_UTILS_CHECK_NULL_POINTER("glistp", gfx, "../PreRender.c", 566);
 
         gDPPipeSync(gfx++);
         gDPSetEnvColor(gfx++, 255, 255, 255, 32);
@@ -451,15 +466,16 @@ void func_800C213C(PreRender* this, Gfx** gfxP) {
         curRow = 0;
         while (rowsRemaining > 0) {
             s32 uls = 0;
+            s32 ult = curRow;
             s32 lrs = this->width - 1;
-            s32 ult;
             s32 lrt;
 
             // Make sure that we don't load past the end of the source image
-            nRows = MIN(rowsRemaining, nRows);
+            if (nRows > rowsRemaining) {
+                nRows = rowsRemaining;
+            }
 
-            // Determine the upper and lower bounds of the rect to draw
-            ult = curRow;
+            // Determine the lower bound of the rect to draw
             lrt = curRow + nRows - 1;
 
             // Load the frame buffer line
@@ -467,18 +483,22 @@ void func_800C213C(PreRender* this, Gfx** gfxP) {
                              this->height, uls, ult, lrs, lrt, 0, G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMIRROR | G_TX_WRAP,
                              G_TX_NOMASK, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
 
+            rtile = rtile; // Fake match?
+
             // Load the coverage line
             gDPLoadMultiTile(gfx++, this->cvgSave, 0x0160, rtile, G_IM_FMT_I, G_IM_SIZ_8b, this->width, this->height,
                              uls, ult, lrs, lrt, 0, G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMASK,
                              G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
+
+            rtile = rtile; // Fake match?
 
             // Draw a texture for which the rgb channels come from the framebuffer and the alpha channel comes from
             // coverage, modulated by env color
             gSPTextureRectangle(gfx++, uls << 2, ult << 2, (lrs + 1) << 2, (lrt + 1) << 2, G_TX_RENDERTILE, uls << 5,
                                 ult << 5, 1 << 10, 1 << 10);
 
-            rowsRemaining -= nRows;
             curRow += nRows;
+            rowsRemaining -= nRows;
         }
 
         gDPPipeSync(gfx++);
@@ -507,11 +527,11 @@ void PreRender_CopyImageRegion(PreRender* this, Gfx** gfxP) {
  * This filter performs a linear interpolation on partially covered pixels between the current pixel color (called
  * foreground color) and a "background" pixel color obtained by sampling fully covered pixels at the six highlighted
  * points in the following 5x3 neighborhood:
- *    _ _ _ _ _
+ *    - - - - -
  *  |   o   o   |
  *  | o   X   o |
  *  |   o   o   |
- *    ‾ ‾ ‾ ‾ ‾
+ *    - - - - -
  * Whether a pixel is partially covered is determined by reading the coverage values associated with the image.
  * Coverage is a measure of how many subpixels the last drawn primitive covered. A fully covered pixel is one with a
  * full coverage value, the entire pixel was covered by the primitive.
@@ -545,7 +565,7 @@ void PreRender_AntiAliasFilter(PreRender* this, s32 x, s32 y) {
     s32 buffB[5 * 3];
     s32 xi;
     s32 yi;
-    s32 pad;
+    s32 invCvg;
     s32 pmaxR;
     s32 pmaxG;
     s32 pmaxB;
@@ -583,10 +603,12 @@ void PreRender_AntiAliasFilter(PreRender* this, s32 x, s32 y) {
         buffCvg[i] = this->cvgSave[xi + yi * this->width] >> 5;
     }
 
+#if DEBUG_FEATURES
     if (buffCvg[7] == 7) {
-        osSyncPrintf("Error, should not be in here \n");
+        PRINTF("Error, should not be in here \n");
         return;
     }
+#endif
 
     pmaxR = pminR = buffR[7];
     pmaxG = pminG = buffG[7];
@@ -653,14 +675,16 @@ void PreRender_AntiAliasFilter(PreRender* this, s32 x, s32 y) {
         }
     }
 
-    // The background color is determined by averaging the penultimate minimum and maximum pixels, and subtracting the
+    // The background color is determined by adding the penultimate minimum and maximum pixels, and subtracting the
     // ForeGround color:
-    //      BackGround = (pMax + pMin) - (ForeGround) * 2
+    //      BackGround = (pMax + pMin) - ForeGround
 
     // OutputColor = cvg * ForeGround + (1.0 - cvg) * BackGround
-    outR = buffR[7] + ((s32)((7 - buffCvg[7]) * (pmaxR + pminR - (buffR[7] * 2)) + 4) >> 3);
-    outG = buffG[7] + ((s32)((7 - buffCvg[7]) * (pmaxG + pminG - (buffG[7] * 2)) + 4) >> 3);
-    outB = buffB[7] + ((s32)((7 - buffCvg[7]) * (pmaxB + pminB - (buffB[7] * 2)) + 4) >> 3);
+    //             = ForeGround + (1.0 - cvg) * (BackGround - ForeGround)
+    invCvg = 7 - buffCvg[7];
+    outR = buffR[7] + ((s32)(invCvg * (pmaxR + pminR - (buffR[7] * 2)) + 4) >> 3);
+    outG = buffG[7] + ((s32)(invCvg * (pmaxG + pminG - (buffG[7] * 2)) + 4) >> 3);
+    outB = buffB[7] + ((s32)(invCvg * (pmaxB + pminB - (buffB[7] * 2)) + 4) >> 3);
 
     pxOut.r = outR >> 3;
     pxOut.g = outG >> 3;
@@ -673,6 +697,14 @@ void PreRender_AntiAliasFilter(PreRender* this, s32 x, s32 y) {
 #define MEDIAN3(a1, a2, a3)                                                    \
     (((a2) >= (a1)) ? (((a3) >= (a2)) ? (a2) : (((a1) >= (a3)) ? (a1) : (a3))) \
                     : (((a2) >= (a3)) ? (a2) : (((a3) >= (a1)) ? (a1) : (a3))))
+
+#if DEBUG_FEATURES
+#define R_HREG_MODE_DEBUG R_HREG_MODE
+#else
+#define R_HREG_MODE_DEBUG ((void)0, 0)
+#endif
+
+#define PRERENDER_DIVOT_CONTROL (R_HREG_MODE_DEBUG == HREG_MODE_PRERENDER ? R_PRERENDER_DIVOT_CONTROL : 0)
 
 /**
  * Applies the Video Interface divot filter to an image.
@@ -689,7 +721,7 @@ void PreRender_AntiAliasFilter(PreRender* this, s32 x, s32 y) {
 void PreRender_DivotFilter(PreRender* this) {
     s32 x;
     s32 y;
-    s32 pad1;
+    s32 cvg;
     u8* buffR = alloca(this->width);
     u8* buffG = alloca(this->width);
     u8* buffB = alloca(this->width);
@@ -697,14 +729,14 @@ void PreRender_DivotFilter(PreRender* this) {
     s32 pxR;
     s32 pxG;
     s32 pxB;
+    Color_RGBA16 pxIn;
+    Color_RGBA16 pxOut;
 
     for (y = 0; y < this->height; y++) {
         // The divot filter is applied row-by-row as it only needs to use pixels that are horizontally adjacent
 
         // Decompose each pixel into color channels
         for (x = 0; x < this->width; x++) {
-            Color_RGBA16 pxIn;
-
             pxIn.rgba = this->fbufSave[x + y * this->width];
             buffR[x] = pxIn.r;
             buffG[x] = pxIn.g;
@@ -714,8 +746,7 @@ void PreRender_DivotFilter(PreRender* this) {
         // Apply the divot filter itself. For pixels with partial coverage, the filter selects the median value from a
         // window of 3 pixels in a horizontal row and uses that as the value for the center pixel.
         for (x = 1; x < this->width - 1; x++) {
-            Color_RGBA16 pxOut;
-            s32 cvg = this->cvgSave[x + y * this->width];
+            cvg = this->cvgSave[x + y * this->width];
 
             // Reject pixels with full coverage. The hardware video filter divot circuit checks if all 3 pixels in the
             // window have partial coverage, here only the center pixel is checked.
@@ -725,11 +756,10 @@ void PreRender_DivotFilter(PreRender* this) {
             }
 
             // This condition is checked before entering this function, it will always pass if it runs.
-            if ((R_HREG_MODE == HREG_MODE_PRERENDER ? R_PRERENDER_DIVOT_CONTROL : 0) != 0) {
-                if ((R_HREG_MODE == HREG_MODE_PRERENDER ? R_PRERENDER_DIVOT_CONTROL : 0) != 0) {}
+            if (PRERENDER_DIVOT_CONTROL != 0) {
+                if (PRERENDER_DIVOT_CONTROL != 0) {}
 
-                if ((R_HREG_MODE == HREG_MODE_PRERENDER ? R_PRERENDER_DIVOT_CONTROL : 0) ==
-                    PRERENDER_DIVOT_PARTIAL_CVG_RED) {
+                if (PRERENDER_DIVOT_CONTROL == PRERENDER_DIVOT_PARTIAL_CVG_RED) {
                     // Fill the pixel with full red, likely for debugging
                     pxR = 31;
                     pxG = 0;
@@ -740,19 +770,17 @@ void PreRender_DivotFilter(PreRender* this) {
                     u8* windowG = &buffG[x - 1];
                     u8* windowB = &buffB[x - 1];
 
-                    if ((R_HREG_MODE == HREG_MODE_PRERENDER ? R_PRERENDER_DIVOT_CONTROL : 0) ==
-                        PRERENDER_DIVOT_PRINT_COLOR) {
-                        osSyncPrintf("red=%3d %3d %3d %3d grn=%3d %3d %3d %3d blu=%3d %3d %3d %3d \n", windowR[0],
-                                     windowR[1], windowR[2], MEDIAN3(windowR[0], windowR[1], windowR[2]), windowG[0],
-                                     windowG[1], windowG[2], MEDIAN3(windowG[0], windowG[1], windowG[2]), windowB[0],
-                                     windowB[1], windowB[2], MEDIAN3(windowB[0], windowB[1], windowB[2]));
+                    if (PRERENDER_DIVOT_CONTROL == PRERENDER_DIVOT_PRINT_COLOR) {
+                        PRINTF("red=%3d %3d %3d %3d grn=%3d %3d %3d %3d blu=%3d %3d %3d %3d \n", windowR[0], windowR[1],
+                               windowR[2], MEDIAN3(windowR[0], windowR[1], windowR[2]), windowG[0], windowG[1],
+                               windowG[2], MEDIAN3(windowG[0], windowG[1], windowG[2]), windowB[0], windowB[1],
+                               windowB[2], MEDIAN3(windowB[0], windowB[1], windowB[2]));
                     }
 
                     // Sample the median value from the 3 pixel wide window
 
                     // (Both blocks contain the same code)
-                    if ((R_HREG_MODE == HREG_MODE_PRERENDER ? R_PRERENDER_DIVOT_CONTROL : 0) ==
-                        PRERENDER_DIVOT_ALTERNATE_COLOR) {
+                    if (PRERENDER_DIVOT_CONTROL == PRERENDER_DIVOT_ALTERNATE_COLOR) {
                         pxR = MEDIAN3(windowR[0], windowR[1], windowR[2]);
                         pxG = MEDIAN3(windowG[0], windowG[1], windowG[2]);
                         pxB = MEDIAN3(windowB[0], windowB[1], windowB[2]);
@@ -796,7 +824,7 @@ void PreRender_ApplyFilters(PreRender* this) {
             }
         }
 
-        if ((R_HREG_MODE == HREG_MODE_PRERENDER ? R_PRERENDER_DIVOT_CONTROL : 0) != 0) {
+        if (PRERENDER_DIVOT_CONTROL != 0) {
             // Apply divot filter
             PreRender_DivotFilter(this);
         }

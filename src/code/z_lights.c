@@ -1,9 +1,16 @@
-#include "global.h"
+#include "avoid_ub.h"
+#include "buffers.h"
+#include "gfx.h"
+#include "gfx_setupdl.h"
+#include "sys_matrix.h"
+#include "light.h"
+#include "play_state.h"
+
 #include "assets/objects/gameplay_keep/gameplay_keep.h"
 
 #define LIGHTS_BUFFER_SIZE 32
 
-typedef struct {
+typedef struct LightsBuffer {
     /* 0x000 */ s32 numOccupied;
     /* 0x004 */ s32 searchIndex;
     /* 0x008 */ LightNode buf[LIGHTS_BUFFER_SIZE];
@@ -61,16 +68,15 @@ void Lights_Draw(Lights* lights, GraphicsContext* gfxCtx) {
 
     OPEN_DISPS(gfxCtx, "../z_lights.c", 339);
 
-    gSPNumLights(POLY_OPA_DISP++, lights->numLights);
-    gSPNumLights(POLY_XLU_DISP++, lights->numLights);
+    gSPNumLights(POLY_OPA_DISP++, (u32)lights->numLights);
+    gSPNumLights(POLY_XLU_DISP++, (u32)lights->numLights);
 
-    i = 0;
     light = &lights->l.l[0];
+    i = 0;
 
     while (i < lights->numLights) {
         gSPLight(POLY_OPA_DISP++, light, ++i);
-        gSPLight(POLY_XLU_DISP++, light, i);
-        light++;
+        gSPLight(POLY_XLU_DISP++, light++, i);
     }
 
     // ambient light is total number of lights + 1
@@ -183,8 +189,7 @@ LightNode* Lights_FindBufSlot(void) {
     return node;
 }
 
-// return type must not be void to match
-s32 Lights_FreeNode(LightNode* light) {
+BAD_RETURN(s32) Lights_FreeNode(LightNode* light) {
     if (light != NULL) {
         sLightsBuffer.numOccupied--;
         light->info = NULL;
@@ -314,22 +319,20 @@ Lights* Lights_New(GraphicsContext* gfxCtx, u8 ambientR, u8 ambientG, u8 ambient
 }
 
 void Lights_GlowCheck(PlayState* play) {
-    LightNode* node;
-    LightPoint* params;
-    Vec3f pos;
-    Vec3f multDest;
-    f32 cappedInvWDest;
-    f32 wX;
-    f32 wY;
-    s32 wZ;
-    s32 zBuf;
-
-    node = play->lightCtx.listHead;
+    LightNode* node = play->lightCtx.listHead;
 
     while (node != NULL) {
-        params = &node->info->params.point;
+        LightPoint* params = &node->info->params.point;
 
         if (node->info->type == LIGHT_POINT_GLOW) {
+            Vec3f pos;
+            Vec3f multDest;
+            f32 cappedInvWDest;
+            f32 wX;
+            f32 wY;
+            s32 wZ;
+            s32 zBuf;
+
             pos.x = params->x;
             pos.y = params->y;
             pos.z = params->z;
@@ -362,9 +365,7 @@ void Lights_GlowCheck(PlayState* play) {
 
 void Lights_DrawGlow(PlayState* play) {
     s32 pad;
-    LightNode* node;
-
-    node = play->lightCtx.listHead;
+    LightNode* node = play->lightCtx.listHead;
 
     OPEN_DISPS(play->state.gfxCtx, "../z_lights.c", 887);
 
@@ -374,23 +375,19 @@ void Lights_DrawGlow(PlayState* play) {
     gSPDisplayList(POLY_XLU_DISP++, gGlowCircleTextureLoadDL);
 
     while (node != NULL) {
-        LightInfo* info;
-        LightPoint* params;
-        f32 scale;
-        s32 pad[4];
+        if ((node->info->type == LIGHT_POINT_GLOW)) {
+            s32 pad[6];
+            LightPoint* params = &node->info->params.point;
 
-        info = node->info;
-        params = &info->params.point;
+            if (params->drawGlow) {
+                f32 scale = SQ(params->radius) * 0.0000026f;
 
-        if ((info->type == LIGHT_POINT_GLOW) && (params->drawGlow)) {
-            scale = SQ(params->radius) * 0.0000026f;
-
-            gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, params->color[0], params->color[1], params->color[2], 50);
-            Matrix_Translate(params->x, params->y, params->z, MTXMODE_NEW);
-            Matrix_Scale(scale, scale, scale, MTXMODE_APPLY);
-            gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_lights.c", 918),
-                      G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
-            gSPDisplayList(POLY_XLU_DISP++, gGlowCircleDL);
+                gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, params->color[0], params->color[1], params->color[2], 50);
+                Matrix_Translate(params->x, params->y, params->z, MTXMODE_NEW);
+                Matrix_Scale(scale, scale, scale, MTXMODE_APPLY);
+                MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_lights.c", 918);
+                gSPDisplayList(POLY_XLU_DISP++, gGlowCircleDL);
+            }
         }
 
         node = node->next;

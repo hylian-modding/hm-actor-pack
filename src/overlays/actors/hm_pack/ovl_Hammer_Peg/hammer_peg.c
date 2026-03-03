@@ -7,10 +7,21 @@
  */
 
 #include "hammer_peg.h"
-#include "assets_hm_pack/objects/object_hammer_peg/object_hammer_peg.h"
+
+#include "libc64/qrand.h"
+#include "actor.h"
+#include "collision_check.h"
+#include "effect.h"
+#include "gfx.h"
+#include "play_state.h"
+#include "player.h"
+#include "sfx.h"
+#include "sys_matrix.h"
+
+#include "assets/objects/hm_pack/object_hammer_peg/object_hammer_peg.h"
 #include "overlays/effects/ovl_Effect_Ss_Kakera/z_eff_ss_kakera.h"
 
-#define FLAGS (ACTOR_FLAG_4 | ACTOR_FLAG_5)
+#define FLAGS (ACTOR_FLAG_UPDATE_CULLING_DISABLED | ACTOR_FLAG_DRAW_CULLING_DISABLED)
 
 void HammerPeg_Init(Actor* thisx, PlayState* play);
 void HammerPeg_Destroy(Actor* thisx, PlayState* play);
@@ -21,7 +32,7 @@ void HammerPeg_IdleUp(HammerPeg* this, PlayState* play);
 void HammerPeg_Lowering(HammerPeg* this, PlayState* play);
 void HammerPeg_IdleDown(HammerPeg* this, PlayState* play);
 
-const ActorInit Hammer_Peg_InitVars = {
+const ActorProfile Hammer_Peg_Profile = {
     ACTOR_HAMMER_PEG,
     ACTORCAT_BG,
     FLAGS,
@@ -35,7 +46,7 @@ const ActorInit Hammer_Peg_InitVars = {
 
 static ColliderCylinderInit sCylinderBaseInit = {
     {
-        COLTYPE_TREE,
+        COL_MATERIAL_TREE,
         AT_NONE,
         AC_ON | AC_HARD | AC_TYPE_PLAYER,
         OC1_ON | OC1_TYPE_ALL,
@@ -43,11 +54,11 @@ static ColliderCylinderInit sCylinderBaseInit = {
         COLSHAPE_CYLINDER,
     },
     {
-        ELEMTYPE_UNK0,
+        ELEM_MATERIAL_UNK0,
         { 0x00100000, 0x00, 0x00 },
         { 0xEE01FFFF, 0x00, 0x00 },
-        TOUCH_NONE,
-        BUMP_ON,
+        ATELEM_NONE,
+        ACELEM_ON,
         OCELEM_ON,
     },
     { 20, 60, 0, { 0, 0, 0 } },
@@ -55,7 +66,7 @@ static ColliderCylinderInit sCylinderBaseInit = {
 
 static ColliderCylinderInit sCylinderTopInit = {
     {
-        COLTYPE_TREE,
+        COL_MATERIAL_TREE,
         AT_NONE,
         AC_ON | AC_TYPE_PLAYER,
         OC1_ON | OC1_TYPE_ALL,
@@ -63,11 +74,11 @@ static ColliderCylinderInit sCylinderTopInit = {
         COLSHAPE_CYLINDER,
     },
     {
-        ELEMTYPE_UNK0,
+        ELEM_MATERIAL_UNK0,
         { 0x00000000, 0x00, 0x00 },
         { DMG_HAMMER, 0x00, 0x00 },
-        TOUCH_NONE,
-        BUMP_ON | BUMP_NO_AT_INFO | BUMP_NO_DAMAGE | BUMP_NO_SWORD_SFX | BUMP_NO_HITMARK,
+        ATELEM_NONE,
+        ACELEM_ON | ACELEM_NO_AT_INFO | ACELEM_NO_DAMAGE | ACELEM_NO_SWORD_SFX | ACELEM_NO_HITMARK,
         OCELEM_NONE,
     },
     { 35, 20, 30, { 0, 0, 0 } },
@@ -138,7 +149,7 @@ void HammerPeg_IdleUp(HammerPeg* this, PlayState* play) {
 
     if (this->colliderTop.base.acFlags & AC_HIT && !Player_InCsMode(play)) {
         if (player->meleeWeaponAnimation != PLAYER_MWA_STAB_1H &&
-            this->colliderTop.info.acHitInfo->toucher.dmgFlags & DMG_HAMMER) {
+            this->colliderTop.elem.acHitElem->atDmgInfo.dmgFlags & DMG_HAMMER) {
             this->colliderTop.base.acFlags &= ~AC_HIT;
 
             Actor_PlaySfx(&this->dyna.actor, NA_SE_EV_WOOD_BOUND);
@@ -191,7 +202,7 @@ void HammerPeg_Draw(Actor* thisx, PlayState* play) {
 
     Matrix_Translate(0.0f, (-2100.0f / 100.0f) * (100 - this->percentUp), 0.0f, MTXMODE_APPLY);
     Matrix_Scale(1.0f, ((0.25f / 100.0f) * this->percentUp) + 0.75f, 1.0f, MTXMODE_APPLY);
-    gSPMatrix(POLY_OPA_DISP++, Matrix_NewMtx(play->state.gfxCtx, __FILE__, __LINE__),
+    gSPMatrix(POLY_OPA_DISP++, Matrix_Finalize(play->state.gfxCtx, __FILE__, __LINE__),
               G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
     Gfx_DrawDListOpa(play, gHammerPegTopDL);
 

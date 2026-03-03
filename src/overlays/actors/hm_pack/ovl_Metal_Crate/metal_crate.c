@@ -6,7 +6,17 @@
  */
 
 #include "metal_crate.h"
-#include "assets_hm_pack/objects/object_metal_crate/object_metal_crate.h"
+
+#include "libc64/qrand.h"
+#include "actor.h"
+#include "effect.h"
+#include "ichain.h"
+#include "play_state.h"
+#include "sfx.h"
+#include "z_en_item00.h"
+#include "z_lib.h"
+
+#include "assets/objects/hm_pack/object_metal_crate/object_metal_crate.h"
 #include "overlays/effects/ovl_Effect_Ss_Kakera/z_eff_ss_kakera.h"
 
 #define FLAGS (0)
@@ -18,7 +28,7 @@ void MetalCrate_Draw(Actor* thisx, PlayState* play);
 
 void MetalCrate_DoNothing(MetalCrate* this, PlayState* play);
 
-const ActorInit Metal_Crate_InitVars = {
+const ActorProfile Metal_Crate_Profile = {
     ACTOR_METAL_CRATE,
     ACTORCAT_BG,
     FLAGS,
@@ -32,23 +42,23 @@ const ActorInit Metal_Crate_InitVars = {
 
 static ColliderCylinderInit sCylinderInit = {
     .base = {
-        .colType = COLTYPE_NONE,
+        .colMaterial = COL_MATERIAL_NONE,
         .acFlags = AC_ON | AC_TYPE_PLAYER,
         .ocFlags2 = OC2_TYPE_2,
         .shape = COLSHAPE_CYLINDER,
     },
-    .info = {
-        .bumper = { .dmgFlags = DMG_HAMMER },
-        .bumperFlags = BUMP_ON,
+    .elem = {
+        .acDmgInfo = { .dmgFlags = DMG_HAMMER },
+        .acElemFlags = ACELEM_ON,
     },
     .dim = { .radius = 31, .height = 48 },
 };
 
 static InitChainEntry sInitChain[] = {
     ICHAIN_VEC3F_DIV1000(scale, 100, ICHAIN_CONTINUE),
-    ICHAIN_F32(uncullZoneForward, 3000, ICHAIN_CONTINUE),
-    ICHAIN_F32(uncullZoneScale, 500, ICHAIN_CONTINUE),
-    ICHAIN_F32(uncullZoneDownward, 1000, ICHAIN_STOP),
+    ICHAIN_F32(cullingVolumeDistance, 3000, ICHAIN_CONTINUE),
+    ICHAIN_F32(cullingVolumeScale, 500, ICHAIN_CONTINUE),
+    ICHAIN_F32(cullingVolumeDownward, 1000, ICHAIN_STOP),
 };
 
 void MetalCrate_Init(Actor* thisx, PlayState* play) {
@@ -179,7 +189,7 @@ void MetalCrate_DoNothing(MetalCrate* this, PlayState* play) {
         SfxSource_PlaySfxAtFixedWorldPos(play, &this->dyna.actor.world.pos, 20, NA_SE_EV_WOODBOX_BREAK);
         SfxSource_PlaySfxAtFixedWorldPos(play, &this->dyna.actor.world.pos, 20, NA_SE_EV_BRIDGE_CLOSE_STOP);
 
-        this->dyna.actor.flags |= ACTOR_FLAG_4;
+        this->dyna.actor.flags |= ACTOR_FLAG_UPDATE_CULLING_DISABLED;
         DynaPoly_DisableCollision(play, &play->colCtx.dyna, this->dyna.bgId);
         this->dyna.actor.draw = NULL;
         this->actionFunc = MetalCrate_SpawnContents;

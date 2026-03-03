@@ -2,7 +2,8 @@
 #define WALL_PULL_SWITCH_H
 
 #include "ultra64.h"
-#include "global.h"
+#include "actor.h"
+#include "play_state.h"
 
 struct WallPullSwitch;
 

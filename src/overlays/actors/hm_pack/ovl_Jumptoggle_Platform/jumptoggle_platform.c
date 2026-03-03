@@ -5,9 +5,18 @@
  */
 
 #include "jumptoggle_platform.h"
-#include "assets_hm_pack/objects/object_jumptoggle_platform/object_jumptoggle_platform.h"
 
-#define FLAGS (ACTOR_FLAG_4 | ACTOR_FLAG_5)
+#include "actor.h"
+#include "gfx.h"
+#include "ichain.h"
+#include "play_state.h"
+#include "player.h"
+#include "sfx.h"
+#include "z_lib.h"
+
+#include "assets/objects/hm_pack/object_jumptoggle_platform/object_jumptoggle_platform.h"
+
+#define FLAGS (ACTOR_FLAG_UPDATE_CULLING_DISABLED | ACTOR_FLAG_DRAW_CULLING_DISABLED)
 
 void JumptogglePlatform_Init(Actor* thisx, PlayState* play);
 void JumptogglePlatform_Destroy(Actor* thisx, PlayState* play);
@@ -19,7 +28,7 @@ void JumptogglePlatform_RotateToTarget(JumptogglePlatform* this, PlayState* play
 void JumptogglePlatform_CheckForJump(JumptogglePlatform* this, PlayState* play);
 void JumptogglePlatform_Border(JumptogglePlatform* this, PlayState* play);
 
-const ActorInit Jumptoggle_Platform_InitVars = {
+const ActorProfile Jumptoggle_Platform_Profile = {
     ACTOR_JUMPTOGGLE_PLATFORM,
     ACTORCAT_BG,
     FLAGS,

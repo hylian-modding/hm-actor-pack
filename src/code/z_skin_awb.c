@@ -1,4 +1,11 @@
-#include "global.h"
+#include "array_count.h"
+#include "segmented_address.h"
+#include "zelda_arena.h"
+#include "actor.h"
+#include "play_state.h"
+#include "skin.h"
+#include "skin_matrix.h"
+
 #include "overlays/actors/ovl_En_fHG/z_en_fhg.h"
 
 /**
@@ -20,13 +27,14 @@ void Skin_InitAnimatedLimb(PlayState* play, Skin* skin, s32 limbIndex) {
              modifEntry++) {
             SkinVertex* skinVertices = SEGMENTED_TO_VIRTUAL(modifEntry->skinVertices);
 
-            for (skinVtxEntry = skinVertices; skinVtxEntry < &skinVertices[modifEntry->vtxCount]; skinVtxEntry++) {
+            for (skinVtxEntry = skinVertices; skinVtxEntry < &skinVertices[modifEntry->vtxCount];) {
                 Vtx* vtx = &vtxBuf[skinVtxEntry->index];
 
                 vtx->n.flag = 0;
                 vtx->n.tc[0] = skinVtxEntry->s;
                 vtx->n.tc[1] = skinVtxEntry->t;
                 vtx->n.a = skinVtxEntry->alpha;
+                skinVtxEntry++;
             }
         }
     }

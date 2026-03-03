@@ -1,9 +1,35 @@
 #include "z_en_fr.h"
-#include "assets/objects/gameplay_field_keep/gameplay_field_keep.h"
+
+#include "array_count.h"
+#include "controller.h"
+#include "gfx.h"
+#include "gfx_setupdl.h"
+#include "ichain.h"
+#include "one_point_cutscene.h"
+#include "printf.h"
+#include "rand.h"
+#include "regs.h"
+#include "segmented_address.h"
+#include "sfx.h"
+#include "sys_matrix.h"
 #include "terminal.h"
+#include "translation.h"
+#include "z_lib.h"
+#include "audio.h"
+#include "debug_display.h"
+#include "effect.h"
+#include "light.h"
+#include "ocarina.h"
+#include "play_state.h"
+#include "player.h"
+#include "save.h"
+
+#include "assets/objects/gameplay_field_keep/gameplay_field_keep.h"
 #include "assets/objects/object_fr/object_fr.h"
 
-#define FLAGS (ACTOR_FLAG_0 | ACTOR_FLAG_3 | ACTOR_FLAG_4 | ACTOR_FLAG_25)
+#define FLAGS                                                                                  \
+    (ACTOR_FLAG_ATTENTION_ENABLED | ACTOR_FLAG_FRIENDLY | ACTOR_FLAG_UPDATE_CULLING_DISABLED | \
+     ACTOR_FLAG_UPDATE_DURING_OCARINA)
 
 void EnFr_Init(Actor* thisx, PlayState* play);
 void EnFr_Destroy(Actor* thisx, PlayState* play);
@@ -77,18 +103,18 @@ sEnFrPointers.flags = 1 to 11:
          - 5: frog 0 (Yellow)
          - 7: frog 2 (Red)
          - 9: frog 4 (White)
-     - Will proceed when counter reachers 11
+     - Will proceed when counter reaches 11
 
 sEnFrPointers.flags = 12
      - Deactivate frogs, frogs will jump back into the water
 */
 
-typedef struct {
+typedef struct EnFrPointers {
     u8 flags;
     EnFr* frogs[5];
 } EnFrPointers;
 
-typedef struct {
+typedef struct LogSpotToFromWater {
     f32 xzDist;
     f32 yaw;
     f32 yDist;
@@ -106,22 +132,22 @@ static EnFrPointers sEnFrPointers = {
 };
 
 #define FROG_HAS_SONG_BEEN_PLAYED(frogSongIndex)                             \
-    (gSaveContext.save.info.eventChkInf[EVENTCHKINF_SONGS_FOR_FROGS_INDEX] & \
+    (gSaveContext.save.info.eventChkInf[EVENTCHKINF_INDEX_SONGS_FOR_FROGS] & \
      sFrogSongIndexToEventChkInfSongsForFrogsMask[frogSongIndex])
 
 #define FROG_SET_SONG_PLAYED(frogSongIndex)                                  \
-    gSaveContext.save.info.eventChkInf[EVENTCHKINF_SONGS_FOR_FROGS_INDEX] |= \
+    gSaveContext.save.info.eventChkInf[EVENTCHKINF_INDEX_SONGS_FOR_FROGS] |= \
         sFrogSongIndexToEventChkInfSongsForFrogsMask[frogSongIndex];
 
 static u16 sFrogSongIndexToEventChkInfSongsForFrogsMask[] = {
-    EVENTCHKINF_SONGS_FOR_FROGS_ZL_MASK,     // FROG_ZL
-    EVENTCHKINF_SONGS_FOR_FROGS_EPONA_MASK,  // FROG_EPONA
-    EVENTCHKINF_SONGS_FOR_FROGS_SARIA_MASK,  // FROG_SARIA
-    EVENTCHKINF_SONGS_FOR_FROGS_SUNS_MASK,   // FROG_SUNS
-    EVENTCHKINF_SONGS_FOR_FROGS_SOT_MASK,    // FROG_SOT
-    EVENTCHKINF_SONGS_FOR_FROGS_STORMS_MASK, // FROG_STORMS
-    EVENTCHKINF_SONGS_FOR_FROGS_CHOIR_MASK,  // FROG_CHOIR_SONG
-    0,                                       // FROG_NO_SONG
+    EVENTCHKINF_MASK(EVENTCHKINF_SONGS_FOR_FROGS_ZL),     // FROG_ZL
+    EVENTCHKINF_MASK(EVENTCHKINF_SONGS_FOR_FROGS_EPONA),  // FROG_EPONA
+    EVENTCHKINF_MASK(EVENTCHKINF_SONGS_FOR_FROGS_SARIA),  // FROG_SARIA
+    EVENTCHKINF_MASK(EVENTCHKINF_SONGS_FOR_FROGS_SUNS),   // FROG_SUNS
+    EVENTCHKINF_MASK(EVENTCHKINF_SONGS_FOR_FROGS_SOT),    // FROG_SOT
+    EVENTCHKINF_MASK(EVENTCHKINF_SONGS_FOR_FROGS_STORMS), // FROG_STORMS
+    EVENTCHKINF_MASK(EVENTCHKINF_SONGS_FOR_FROGS_CHOIR),  // FROG_CHOIR_SONG
+    0,                                                    // FROG_NO_SONG
 };
 
 static u8 sFrogToFrogSongIndex[] = {
@@ -133,7 +159,7 @@ static s32 sSongToFrog[] = {
     FROG_PURPLE, FROG_WHITE, FROG_YELLOW, FROG_BLUE, FROG_RED,
 };
 
-ActorInit En_Fr_InitVars = {
+ActorProfile En_Fr_Profile = {
     /**/ ACTOR_EN_FR,
     /**/ ACTORCAT_NPC,
     /**/ FLAGS,
@@ -168,8 +194,8 @@ static s16 sTimerFrogSong[] = {
 };
 
 static InitChainEntry sInitChain[] = {
-    ICHAIN_U8(targetMode, 2, ICHAIN_CONTINUE),
-    ICHAIN_F32(targetArrowOffset, 30, ICHAIN_STOP),
+    ICHAIN_U8(attentionRangeType, ATTENTION_RANGE_2, ICHAIN_CONTINUE),
+    ICHAIN_F32(lockOnArrowOffset, 30, ICHAIN_STOP),
 };
 
 // Counter to Coordinate Frog jumping out of water one at a time
@@ -236,27 +262,26 @@ void EnFr_Init(Actor* thisx, PlayState* play) {
         this->actor.destroy = NULL;
         this->actor.draw = NULL;
         this->actor.update = EnFr_UpdateIdle;
-        this->actor.flags &= ~(ACTOR_FLAG_0 | ACTOR_FLAG_4);
+        this->actor.flags &= ~(ACTOR_FLAG_ATTENTION_ENABLED | ACTOR_FLAG_UPDATE_CULLING_DISABLED);
         this->actor.flags &= ~0;
         Actor_ChangeCategory(play, &play->actorCtx, &this->actor, ACTORCAT_PROP);
         this->actor.textId = 0x40AC;
         this->actionFunc = EnFr_Idle;
     } else {
         if ((this->actor.params >= 6) || (this->actor.params < 0)) {
-            osSyncPrintf(VT_COL(RED, WHITE));
-            // "The argument is wrong!!"
-            osSyncPrintf("%s[%d] : 引数が間違っている！！(%d)\n", "../z_en_fr.c", 370, this->actor.params);
-            osSyncPrintf(VT_RST);
+            PRINTF_COLOR_ERROR();
+            PRINTF(T("%s[%d] : 引数が間違っている！！(%d)\n", "%s[%d] : The argument is wrong!! (%d)\n"),
+                   "../z_en_fr.c", 370, this->actor.params);
+            PRINTF_RST();
             ASSERT(0, "0", "../z_en_fr.c", 372);
         }
 
         this->requiredObjectSlot = Object_GetSlot(&play->objectCtx, OBJECT_GAMEPLAY_FIELD_KEEP);
         if (this->requiredObjectSlot < 0) {
             Actor_Kill(&this->actor);
-            osSyncPrintf(VT_COL(RED, WHITE));
-            // "There is no bank!!"
-            osSyncPrintf("%s[%d] : バンクが無いよ！！\n", "../z_en_fr.c", 380);
-            osSyncPrintf(VT_RST);
+            PRINTF_COLOR_ERROR();
+            PRINTF(T("%s[%d] : バンクが無いよ！！\n", "%s[%d] : There is no bank!!\n"), "../z_en_fr.c", 380);
+            PRINTF_RST();
             ASSERT(0, "0", "../z_en_fr.c", 382);
         }
     }
@@ -278,7 +303,7 @@ void EnFr_Update(Actor* thisx, PlayState* play) {
     s32 pad2;
 
     if (Object_IsLoaded(&play->objectCtx, this->requiredObjectSlot)) {
-        this->actor.flags &= ~ACTOR_FLAG_4;
+        this->actor.flags &= ~ACTOR_FLAG_UPDATE_CULLING_DISABLED;
         frogIndex = this->actor.params - 1;
         sEnFrPointers.frogs[frogIndex] = this;
         Actor_ProcessInitChain(&this->actor, sInitChain);
@@ -321,7 +346,7 @@ void EnFr_Update(Actor* thisx, PlayState* play) {
         this->posButterflyLight.x = this->posButterfly.x = this->posLogSpot.x;
         this->posButterflyLight.y = this->posButterfly.y = this->posLogSpot.y + 50.0f;
         this->posButterflyLight.z = this->posButterfly.z = this->posLogSpot.z;
-        this->actor.flags &= ~ACTOR_FLAG_0;
+        this->actor.flags &= ~ACTOR_FLAG_ATTENTION_ENABLED;
     }
 }
 
@@ -723,20 +748,17 @@ void EnFr_ListeningToOcarinaNotes(EnFr* this, PlayState* play) {
 }
 
 void EnFr_ChildSong(EnFr* this, PlayState* play) {
-    EnFr* frog;
-    u8 songIndex;
-
     if (this->jumpCounter < 48) {
         if (this->jumpCounter % 4 == 0) {
             EnFr_SetupJumpingUp(this, sJumpOrder[(this->jumpCounter >> 2) & 7]);
         }
     } else {
-        songIndex = this->songIndex;
-        if (songIndex == FROG_STORMS) {
+        if (this->songIndex == FROG_STORMS) {
             this->actor.textId = 0x40AA;
             EnFr_SetupReward(this, play, false);
-        } else if (!FROG_HAS_SONG_BEEN_PLAYED(songIndex)) {
-            frog = sEnFrPointers.frogs[sSongToFrog[songIndex]];
+        } else if (!FROG_HAS_SONG_BEEN_PLAYED(this->songIndex)) {
+            EnFr* frog = sEnFrPointers.frogs[sSongToFrog[this->songIndex]];
+
             Sfx_PlaySfxCentered(NA_SE_SY_CORRECT_CHIME);
             if (frog->actionFunc == EnFr_ChooseJumpFromLogSpot) {
                 frog->isJumpingUp = true;
@@ -800,10 +822,10 @@ void EnFr_CheckOcarinaInputFrogSong(u8 ocarinaNote) {
 
 void EnFr_DeactivateButterfly(void) {
     s32 frogIndex;
-    EnFr* frog;
 
     for (frogIndex = 0; frogIndex < ARRAY_COUNT(sEnFrPointers.frogs); frogIndex++) {
-        frog = sEnFrPointers.frogs[frogIndex];
+        EnFr* frog = sEnFrPointers.frogs[frogIndex];
+
         frog->isButterflyDrawn = false;
     }
 }
@@ -863,21 +885,18 @@ void EnFr_OcarinaMistake(EnFr* this, PlayState* play) {
 }
 
 void EnFr_ContinueFrogSong(EnFr* this, PlayState* play) {
-    s32 counter;
-    EnFr* frog;
-    s32 i;
-
     if (this->frogSongTimer == 0) {
         EnFr_OcarinaMistake(this, play);
     } else {
         this->frogSongTimer--;
         if (play->msgCtx.msgMode == MSGMODE_FROGS_PLAYING) {
-            counter = 0;
+            s32 counter = 0;
+            s32 i;
+
             for (i = 0; i < ARRAY_COUNT(sEnFrPointers.frogs); i++) {
-                frog = sEnFrPointers.frogs[i];
-                if (frog != NULL && frog->actionFunc == EnFr_ChooseJumpFromLogSpot) {
-                    continue;
-                } else {
+                EnFr* frog = sEnFrPointers.frogs[i];
+
+                if (frog == NULL || frog->actionFunc != EnFr_ChooseJumpFromLogSpot) {
                     counter++;
                 }
             }
@@ -971,8 +990,6 @@ void EnFr_SetReward(EnFr* this, PlayState* play) {
 }
 
 void EnFr_Deactivate(EnFr* this, PlayState* play) {
-    EnFr* frogLoop1;
-    EnFr* frogLoop2;
     s32 frogIndex;
 
     // Originally was going to have separate butterfly actor
@@ -983,28 +1000,28 @@ void EnFr_Deactivate(EnFr* this, PlayState* play) {
     }
 
     for (frogIndex = 0; frogIndex < ARRAY_COUNT(sEnFrPointers.frogs); frogIndex++) {
-        frogLoop1 = sEnFrPointers.frogs[frogIndex];
-        if (frogLoop1 == NULL) {
-            osSyncPrintf(VT_COL(RED, WHITE));
-            // "There are no frogs!?"
-            osSyncPrintf("%s[%d]カエルがいない！？\n", "../z_en_fr.c", 1604);
-            osSyncPrintf(VT_RST);
+        EnFr* frog = sEnFrPointers.frogs[frogIndex];
+
+        if (frog == NULL) {
+            PRINTF_COLOR_ERROR();
+            PRINTF(T("%s[%d]カエルがいない！？\n", "%s[%d] There are no frogs!?\n"), "../z_en_fr.c", 1604);
+            PRINTF_RST();
             return;
-        } else if (frogLoop1->isDeactivating != true) {
+        } else if (frog->isDeactivating != true) {
             return;
         }
     }
 
     for (frogIndex = 0; frogIndex < ARRAY_COUNT(sEnFrPointers.frogs); frogIndex++) {
-        frogLoop2 = sEnFrPointers.frogs[frogIndex];
-        if (frogLoop2 == NULL) {
-            osSyncPrintf(VT_COL(RED, WHITE));
-            // "There are no frogs!?"
-            osSyncPrintf("%s[%d]カエルがいない！？\n", "../z_en_fr.c", 1618);
-            osSyncPrintf(VT_RST);
+        EnFr* frog = sEnFrPointers.frogs[frogIndex];
+
+        if (frog == NULL) {
+            PRINTF_COLOR_ERROR();
+            PRINTF(T("%s[%d]カエルがいない！？\n", "%s[%d] There are no frogs!?\n"), "../z_en_fr.c", 1618);
+            PRINTF_RST();
             return;
         }
-        frogLoop2->isDeactivating = false;
+        frog->isDeactivating = false;
     }
 
     play->msgCtx.ocarinaMode = OCARINA_MODE_04;
@@ -1035,11 +1052,12 @@ void EnFr_SetIdle(EnFr* this, PlayState* play) {
 void EnFr_UpdateIdle(Actor* thisx, PlayState* play) {
     EnFr* this = (EnFr*)thisx;
 
-    if (BREG(0)) {
+    if (DEBUG_FEATURES && BREG(0) != 0) {
         DebugDisplay_AddObject(this->actor.world.pos.x, this->actor.world.pos.y, this->actor.world.pos.z,
                                this->actor.world.rot.x, this->actor.world.rot.y, this->actor.world.rot.z, 1.0f, 1.0f,
                                1.0f, 255, 0, 0, 255, 4, play->state.gfxCtx);
     }
+
     this->jumpCounter++;
     this->actionFunc(this, play);
 }
@@ -1058,8 +1076,7 @@ void EnFr_PostLimbDraw(PlayState* play, s32 limbIndex, Gfx** dList, Vec3s* rot, 
         OPEN_DISPS(play->state.gfxCtx, "../z_en_fr.c", 1735);
         Matrix_Push();
         Matrix_ReplaceRotation(&play->billboardMtxF);
-        gSPMatrix(POLY_OPA_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_en_fr.c", 1738),
-                  G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+        MATRIX_FINALIZE_AND_LOAD(POLY_OPA_DISP++, play->state.gfxCtx, "../z_en_fr.c", 1738);
         gSPDisplayList(POLY_OPA_DISP++, *dList);
         Matrix_Pop();
         CLOSE_DISPS(play->state.gfxCtx, "../z_en_fr.c", 1741);

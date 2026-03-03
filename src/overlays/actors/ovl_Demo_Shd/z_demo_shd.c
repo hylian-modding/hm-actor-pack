@@ -6,7 +6,14 @@
 
 #include "z_demo_shd.h"
 
-#define FLAGS (ACTOR_FLAG_4 | ACTOR_FLAG_5)
+#include "gfx.h"
+#include "gfx_setupdl.h"
+#include "sequence.h"
+#include "sys_matrix.h"
+#include "audio.h"
+#include "play_state.h"
+
+#define FLAGS (ACTOR_FLAG_UPDATE_CULLING_DISABLED | ACTOR_FLAG_DRAW_CULLING_DISABLED)
 
 void DemoShd_Init(Actor* thisx, PlayState* play);
 void DemoShd_Destroy(Actor* thisx, PlayState* play);
@@ -15,7 +22,7 @@ void DemoShd_Draw(Actor* thisx, PlayState* play);
 
 void func_80991298(DemoShd* this, PlayState* play);
 
-ActorInit Demo_Shd_InitVars = {
+ActorProfile Demo_Shd_Profile = {
     /**/ ACTOR_DEMO_SHD,
     /**/ ACTORCAT_ITEMACTION,
     /**/ FLAGS,
@@ -58,12 +65,10 @@ void func_80991298(DemoShd* this, PlayState* play) {
     }
 
     if (play->csCtx.state != CS_STATE_IDLE) {
-        CsCmdActorCue* cue = play->csCtx.actorCues[0];
-
-        if (cue != NULL) {
-            if (cue->id == 2) {
+        if (play->csCtx.actorCues[0] != NULL) {
+            if (play->csCtx.actorCues[0]->id == 2) {
                 if (!(this->unk_14C & 1)) {
-                    this->unk_14E = cue->startPos.x;
+                    this->unk_14E = play->csCtx.actorCues[0]->startPos.x;
                 }
                 this->unk_14C |= 1;
             } else {
@@ -73,12 +78,10 @@ void func_80991298(DemoShd* this, PlayState* play) {
     }
 
     if (play->csCtx.state != CS_STATE_IDLE) {
-        CsCmdActorCue* cue = play->csCtx.actorCues[1];
-
-        if (cue != NULL) {
-            if (cue->id == 2) {
+        if (play->csCtx.actorCues[1] != NULL) {
+            if (play->csCtx.actorCues[1]->id == 2) {
                 if (!(this->unk_14C & 2)) {
-                    this->unk_14E = cue->startPos.x;
+                    this->unk_14E = play->csCtx.actorCues[1]->startPos.x;
                 }
                 this->unk_14C |= 2;
             } else {
@@ -101,14 +104,11 @@ void DemoShd_Draw(Actor* thisx, PlayState* play) {
     s32 pad;
     u32 unk_14E = this->unk_14E;
 
-    if (1) {} // Necessary to match, can be anywhere in the function
-
     OPEN_DISPS(play->state.gfxCtx, "../z_demo_shd.c", 726);
 
     Gfx_SetupDL_25Xlu(play->state.gfxCtx);
 
-    gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_demo_shd.c", 729),
-              G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+    MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_demo_shd.c", 729);
     gSPDisplayList(POLY_XLU_DISP++, D_809932D0);
 
     if (this->unk_14C & 1) {

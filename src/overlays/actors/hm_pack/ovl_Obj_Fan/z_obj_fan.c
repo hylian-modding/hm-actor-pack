@@ -11,10 +11,20 @@
  */
 
 #include "z_obj_fan.h"
-#include "assets_hm_pack/objects/object_fan/object_fan.h"
-#include "assets_hm_pack/objects/object_fan/gWindDL.h"
 
-#define FLAGS ACTOR_FLAG_4 | ACTOR_FLAG_5
+#include "actor.h"
+#include "gfx.h"
+#include "play_state.h"
+#include "player.h"
+#include "sfx.h"
+#include "skin_matrix.h"
+#include "sys_matrix.h"
+#include "z_lib.h"
+
+#include "assets/objects/hm_pack/object_fan/object_fan.h"
+#include "assets/objects/hm_pack/object_fan/gWindDL.h"
+
+#define FLAGS ACTOR_FLAG_UPDATE_CULLING_DISABLED | ACTOR_FLAG_DRAW_CULLING_DISABLED
 #define FAN_REACH 500.0f
 #define FAN_RADIUS 114.0f
 #define FAN_POWER 20.0f
@@ -25,7 +35,7 @@ void ObjFan_Destroy(Actor* thisx, PlayState* play);
 void ObjFan_Update(Actor* thisx, PlayState* play);
 void ObjFan_Draw(Actor* thisx, PlayState* play);
 
-ActorInit Obj_Fan_InitVars = {
+ActorProfile Obj_Fan_Profile = {
     ACTOR_OBJ_FAN,
     ACTORCAT_PROP,
     FLAGS,
@@ -167,7 +177,7 @@ void ObjFan_Draw(Actor* thisx, PlayState* play) {
     Matrix_Get(&curMatrix);
     Matrix_RotateZYX(0, 0, this->propellerRot, MTXMODE_APPLY);
 
-    gSPMatrix(POLY_OPA_DISP++, Matrix_NewMtx(play->state.gfxCtx, __FILE__, __LINE__),
+    gSPMatrix(POLY_OPA_DISP++, Matrix_Finalize(play->state.gfxCtx, __FILE__, __LINE__),
                   G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
 
     gSPDisplayList(POLY_OPA_DISP++, gFanDL);
@@ -176,7 +186,7 @@ void ObjFan_Draw(Actor* thisx, PlayState* play) {
 
     Matrix_Scale(1.0f, 1.0f, 1.2f * this->power, MTXMODE_APPLY);
 
-    gSPMatrix(POLY_XLU_DISP++, Matrix_NewMtx(play->state.gfxCtx, __FILE__, __LINE__),
+    gSPMatrix(POLY_XLU_DISP++, Matrix_Finalize(play->state.gfxCtx, __FILE__, __LINE__),
                   G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
 
     gSPSegment(POLY_XLU_DISP++, 0x08,

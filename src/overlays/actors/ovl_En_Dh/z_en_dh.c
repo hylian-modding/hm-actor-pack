@@ -1,9 +1,37 @@
+/*
+ * File: z_en_dh.c
+ * Overlay: ovl_En_Dh
+ * Description: Dead Hand
+ */
+
 #include "z_en_dh.h"
+
+#include "libc64/qrand.h"
+#include "array_count.h"
+#include "attributes.h"
+#include "gfx.h"
+#include "gfx_setupdl.h"
+#include "ichain.h"
+#include "rand.h"
+#include "sequence.h"
+#include "sfx.h"
+#include "sys_math.h"
+#include "sys_matrix.h"
+#include "z_en_item00.h"
+#include "z_lib.h"
+#include "audio.h"
+#include "effect.h"
+#include "play_state.h"
+#include "player.h"
+#include "save.h"
+
 #include "assets/objects/object_dh/object_dh.h"
 
-#define FLAGS (ACTOR_FLAG_0 | ACTOR_FLAG_2 | ACTOR_FLAG_4 | ACTOR_FLAG_10)
+#define FLAGS                                                                                 \
+    (ACTOR_FLAG_ATTENTION_ENABLED | ACTOR_FLAG_HOSTILE | ACTOR_FLAG_UPDATE_CULLING_DISABLED | \
+     ACTOR_FLAG_HOOKSHOT_PULLS_PLAYER)
 
-typedef enum {
+typedef enum EnDhAction {
     /* 0 */ DH_WAIT,
     /* 1 */ DH_RETREAT,
     /* 2 */ DH_BURROW,
@@ -31,7 +59,7 @@ void EnDh_Burrow(EnDh* this, PlayState* play);
 void EnDh_Damage(EnDh* this, PlayState* play);
 void EnDh_Death(EnDh* this, PlayState* play);
 
-ActorInit En_Dh_InitVars = {
+ActorProfile En_Dh_Profile = {
     /**/ ACTOR_EN_DH,
     /**/ ACTORCAT_ENEMY,
     /**/ FLAGS,
@@ -45,7 +73,7 @@ ActorInit En_Dh_InitVars = {
 
 static ColliderCylinderInit sCylinderInit = {
     {
-        COLTYPE_HIT0,
+        COL_MATERIAL_HIT0,
         AT_NONE,
         AC_ON | AC_HARD | AC_TYPE_PLAYER,
         OC1_ON | OC1_TYPE_PLAYER,
@@ -53,24 +81,24 @@ static ColliderCylinderInit sCylinderInit = {
         COLSHAPE_CYLINDER,
     },
     {
-        ELEMTYPE_UNK0,
-        { 0x00000000, 0x00, 0x00 },
-        { 0x00000008, 0x00, 0x00 },
-        TOUCH_NONE,
-        BUMP_ON,
+        ELEM_MATERIAL_UNK0,
+        { 0x00000000, HIT_SPECIAL_EFFECT_NONE, 0x00 },
+        { 0x00000008, HIT_BACKLASH_NONE, 0x00 },
+        ATELEM_NONE,
+        ACELEM_ON,
         OCELEM_ON,
     },
     { 35, 70, 0, { 0, 0, 0 } },
 };
 
-static ColliderJntSphElementInit sJntSphElementsInit[1] = {
+static ColliderJntSphElementInit sJntSphElementsInit[] = {
     {
         {
-            ELEMTYPE_UNK0,
-            { 0x00000000, 0x00, 0x00 },
-            { 0xFFCFFFFF, 0x00, 0x00 },
-            TOUCH_NONE,
-            BUMP_ON,
+            ELEM_MATERIAL_UNK0,
+            { 0x00000000, HIT_SPECIAL_EFFECT_NONE, 0x00 },
+            { 0xFFCFFFFF, HIT_BACKLASH_NONE, 0x00 },
+            ATELEM_NONE,
+            ACELEM_ON,
             OCELEM_ON | OCELEM_UNK3,
         },
         { 1, { { 0, 0, 0 }, 20 }, 100 },
@@ -79,14 +107,14 @@ static ColliderJntSphElementInit sJntSphElementsInit[1] = {
 
 static ColliderJntSphInit sJntSphInit = {
     {
-        COLTYPE_HIT6,
+        COL_MATERIAL_HIT6,
         AT_NONE,
         AC_ON | AC_TYPE_PLAYER,
         OC1_ON | OC1_TYPE_PLAYER,
         OC2_TYPE_1,
         COLSHAPE_JNTSPH,
     },
-    1,
+    ARRAY_COUNT(sJntSphElementsInit),
     sJntSphElementsInit,
 };
 
@@ -127,7 +155,7 @@ static DamageTable D_809EC620 = {
 
 static InitChainEntry sInitChain[] = {
     ICHAIN_S8(naviEnemyId, NAVI_ENEMY_DEAD_HAND, ICHAIN_CONTINUE),
-    ICHAIN_F32(targetArrowOffset, 2000, ICHAIN_CONTINUE),
+    ICHAIN_F32(lockOnArrowOffset, 2000, ICHAIN_CONTINUE),
     ICHAIN_VEC3F_DIV1000(scale, 10, ICHAIN_CONTINUE),
     ICHAIN_F32_DIV1000(gravity, -3500, ICHAIN_STOP),
 };
@@ -148,11 +176,11 @@ void EnDh_Init(Actor* thisx, PlayState* play) {
     this->actor.colChkInfo.mass = MASS_HEAVY;
     this->actor.colChkInfo.health = LINK_IS_ADULT ? 14 : 20;
     this->alpha = this->unk_258 = 255;
-    this->actor.flags &= ~ACTOR_FLAG_0;
+    this->actor.flags &= ~ACTOR_FLAG_ATTENTION_ENABLED;
     Collider_InitCylinder(play, &this->collider1);
     Collider_SetCylinder(play, &this->collider1, &this->actor, &sCylinderInit);
-    Collider_InitJntSph(play, &this->collider2);
-    Collider_SetJntSph(play, &this->collider2, &this->actor, &sJntSphInit, this->elements);
+    Collider_InitJntSph(play, &this->colliderJntSph);
+    Collider_SetJntSph(play, &this->colliderJntSph, &this->actor, &sJntSphInit, this->colliderJntSphElements);
     EnDh_SetupWait(this);
 }
 
@@ -162,7 +190,7 @@ void EnDh_Destroy(Actor* thisx, PlayState* play) {
 
     func_800F5B58();
     Collider_DestroyCylinder(play, &this->collider1);
-    Collider_DestroyJntSph(play, &this->collider2);
+    Collider_DestroyJntSph(play, &this->colliderJntSph);
 }
 
 void EnDh_SpawnDebris(PlayState* play, EnDh* this, Vec3f* spawnPos, f32 spread, s32 arg4, f32 accelXZ, f32 scale) {
@@ -191,7 +219,7 @@ void EnDh_SetupWait(EnDh* this) {
     this->actor.shape.yOffset = -15000.0f;
     this->dirtWaveSpread = this->actor.speed = 0.0f;
     this->actor.world.rot.y = this->actor.shape.rot.y;
-    this->actor.flags |= ACTOR_FLAG_7;
+    this->actor.flags |= ACTOR_FLAG_REACT_TO_LENS;
     this->dirtWavePhase = this->actionState = this->actor.params = ENDH_WAIT_UNDERGROUND;
     EnDh_SetupAction(this, EnDh_Wait);
 }
@@ -206,9 +234,9 @@ void EnDh_Wait(EnDh* this, PlayState* play) {
     if ((this->actor.params >= ENDH_START_ATTACK_GRAB) || (this->actor.params <= ENDH_HANDS_KILLED_4)) {
         switch (this->actionState) {
             case 0:
-                this->actor.flags |= ACTOR_FLAG_0;
+                this->actor.flags |= ACTOR_FLAG_ATTENTION_ENABLED;
                 this->actor.shape.rot.y = this->actor.yawTowardsPlayer;
-                this->actor.flags &= ~ACTOR_FLAG_7;
+                this->actor.flags &= ~ACTOR_FLAG_REACT_TO_LENS;
                 this->actionState++;
                 this->drawDirtWave++;
                 Actor_PlaySfx(&this->actor, NA_SE_EN_DEADHAND_HIDE);
@@ -233,7 +261,7 @@ void EnDh_Wait(EnDh* this, PlayState* play) {
         Math_SmoothStepToS(&this->actor.shape.rot.y, this->actor.yawTowardsPlayer, 1, 0x7D0, 0);
         SkelAnime_Update(&this->skelAnime);
         if (this->actor.params != ENDH_START_ATTACK_BOMB) {
-            func_8008EEAC(play, &this->actor);
+            Player_SetAutoLockOnActor(play, &this->actor);
         }
     }
 }
@@ -296,16 +324,16 @@ void EnDh_SetupAttack(EnDh* this) {
 }
 
 void EnDh_Attack(EnDh* this, PlayState* play) {
-    s32 pad;
-
     if (SkelAnime_Update(&this->skelAnime)) {
         this->actionState++;
     } else if ((this->actor.xzDistToPlayer > 100.0f) || !Actor_IsFacingPlayer(&this->actor, 60 * 0x10000 / 360)) {
         Animation_Change(&this->skelAnime, &object_dh_Anim_004658, -1.0f, this->skelAnime.curFrame, 0.0f, ANIMMODE_ONCE,
                          -4.0f);
         this->actionState = 4;
-        this->collider2.base.atFlags = this->collider2.elements[0].info.toucherFlags = AT_NONE; // also TOUCH_NONE
-        this->collider2.elements[0].info.toucher.dmgFlags = this->collider2.elements[0].info.toucher.damage = 0;
+        this->colliderJntSph.base.atFlags = this->colliderJntSph.elements[0].base.atElemFlags =
+            AT_NONE; // also ATELEM_NONE
+        this->colliderJntSph.elements[0].base.atDmgInfo.dmgFlags =
+            this->colliderJntSph.elements[0].base.atDmgInfo.damage = 0;
     }
     switch (this->actionState) {
         case 1:
@@ -318,24 +346,27 @@ void EnDh_Attack(EnDh* this, PlayState* play) {
             break;
         case 2:
             if (this->skelAnime.curFrame >= 4.0f) {
-                this->collider2.base.atFlags = this->collider2.elements[0].info.toucherFlags =
-                    AT_ON | AT_TYPE_ENEMY; // also TOUCH_ON | TOUCH_SFX_WOOD
-                this->collider2.elements[0].info.toucher.dmgFlags = DMG_DEFAULT;
-                this->collider2.elements[0].info.toucher.damage = 8;
+                this->colliderJntSph.base.atFlags = this->colliderJntSph.elements[0].base.atElemFlags =
+                    AT_ON | AT_TYPE_ENEMY; // also ATELEM_ON | ATELEM_SFX_WOOD
+                this->colliderJntSph.elements[0].base.atDmgInfo.dmgFlags = DMG_DEFAULT;
+                this->colliderJntSph.elements[0].base.atDmgInfo.damage = 8;
             }
-            if (this->collider2.base.atFlags & AT_BOUNCED) {
-                this->collider2.base.atFlags &= ~(AT_HIT | AT_BOUNCED);
-                this->collider2.base.atFlags = this->collider2.elements[0].info.toucherFlags =
-                    AT_NONE; // also TOUCH_NONE
-                this->collider2.elements[0].info.toucher.dmgFlags = this->collider2.elements[0].info.toucher.damage = 0;
+            if (this->colliderJntSph.base.atFlags & AT_BOUNCED) {
+                this->colliderJntSph.base.atFlags &= ~(AT_HIT | AT_BOUNCED);
+                this->colliderJntSph.base.atFlags = this->colliderJntSph.elements[0].base.atElemFlags =
+                    AT_NONE; // also ATELEM_NONE
+                this->colliderJntSph.elements[0].base.atDmgInfo.dmgFlags =
+                    this->colliderJntSph.elements[0].base.atDmgInfo.damage = 0;
                 this->actionState++;
-            } else if (this->collider2.base.atFlags & AT_HIT) {
-                this->collider2.base.atFlags &= ~AT_HIT;
-                func_8002F71C(play, &this->actor, 8.0f, this->actor.shape.rot.y, 8.0f);
+            } else if (this->colliderJntSph.base.atFlags & AT_HIT) {
+                this->colliderJntSph.base.atFlags &= ~AT_HIT;
+                Actor_SetPlayerKnockbackLargeNoDamage(play, &this->actor, 8.0f, this->actor.shape.rot.y, 8.0f);
             }
             break;
         case 3:
             if ((this->actor.xzDistToPlayer <= 100.0f) && (Actor_IsFacingPlayer(&this->actor, 60 * 0x10000 / 360))) {
+                s32 pad;
+
                 Animation_Change(&this->skelAnime, &object_dh_Anim_004658, 1.0f, 20.0f,
                                  Animation_GetLastFrame(&object_dh_Anim_004658), ANIMMODE_ONCE, -6.0f);
                 this->actionState = 0;
@@ -343,9 +374,10 @@ void EnDh_Attack(EnDh* this, PlayState* play) {
                 Animation_Change(&this->skelAnime, &object_dh_Anim_004658, -1.0f,
                                  Animation_GetLastFrame(&object_dh_Anim_004658), 0.0f, ANIMMODE_ONCE, -4.0f);
                 this->actionState++;
-                this->collider2.base.atFlags = this->collider2.elements[0].info.toucherFlags =
-                    AT_NONE; // also TOUCH_NONE
-                this->collider2.elements[0].info.toucher.dmgFlags = this->collider2.elements[0].info.toucher.damage = 0;
+                this->colliderJntSph.base.atFlags = this->colliderJntSph.elements[0].base.atElemFlags =
+                    AT_NONE; // also ATELEM_NONE
+                this->colliderJntSph.elements[0].base.atDmgInfo.dmgFlags =
+                    this->colliderJntSph.elements[0].base.atDmgInfo.damage = 0;
             }
             break;
         case 5:
@@ -364,7 +396,7 @@ void EnDh_SetupBurrow(EnDh* this) {
     this->actor.world.rot.y = this->actor.shape.rot.y;
     this->dirtWavePhase = 0;
     this->actionState = 0;
-    this->actor.flags &= ~ACTOR_FLAG_0;
+    this->actor.flags &= ~ACTOR_FLAG_ATTENTION_ENABLED;
     Actor_PlaySfx(&this->actor, NA_SE_EN_DEADHAND_HIDE);
     EnDh_SetupAction(this, EnDh_Burrow);
 }
@@ -374,10 +406,10 @@ void EnDh_Burrow(EnDh* this, PlayState* play) {
         case 0:
             this->actionState++;
             this->drawDirtWave++;
-            this->collider1.base.atFlags = this->collider1.info.toucherFlags =
-                AT_ON | AT_TYPE_ENEMY; // also TOUCH_ON | TOUCH_SFX_WOOD
-            this->collider1.info.toucher.dmgFlags = DMG_DEFAULT;
-            this->collider1.info.toucher.damage = 4;
+            this->collider1.base.atFlags = this->collider1.elem.atElemFlags =
+                AT_ON | AT_TYPE_ENEMY; // also ATELEM_ON | ATELEM_SFX_WOOD
+            this->collider1.elem.atDmgInfo.dmgFlags = DMG_DEFAULT;
+            this->collider1.elem.atDmgInfo.damage = 4;
             FALLTHROUGH;
         case 1:
             this->dirtWavePhase += 0x47E;
@@ -393,8 +425,8 @@ void EnDh_Burrow(EnDh* this, PlayState* play) {
         case 2:
             this->drawDirtWave = false;
             this->collider1.dim.radius = 35;
-            this->collider1.base.atFlags = this->collider1.info.toucherFlags = AT_NONE; // Also TOUCH_NONE
-            this->collider1.info.toucher.dmgFlags = this->collider1.info.toucher.damage = 0;
+            this->collider1.base.atFlags = this->collider1.elem.atElemFlags = AT_NONE; // Also ATELEM_NONE
+            this->collider1.elem.atDmgInfo.dmgFlags = this->collider1.elem.atDmgInfo.damage = 0;
             EnDh_SetupWait(this);
             break;
     }
@@ -435,7 +467,7 @@ void EnDh_SetupDeath(EnDh* this) {
     Animation_MorphToPlayOnce(&this->skelAnime, &object_dh_Anim_0032BC, -1.0f);
     this->curAction = DH_DEATH;
     this->timer = 300;
-    this->actor.flags &= ~ACTOR_FLAG_0;
+    this->actor.flags &= ~ACTOR_FLAG_ATTENTION_ENABLED;
     this->actor.speed = 0.0f;
     func_800F5B58();
     this->actor.params = ENDH_DEATH;
@@ -474,11 +506,13 @@ void EnDh_CollisionCheck(EnDh* this, PlayState* play) {
     Player* player = GET_PLAYER(play);
     s32 lastHealth;
 
-    if ((this->collider2.base.acFlags & AC_HIT) && !this->retreat) {
-        this->collider2.base.acFlags &= ~AC_HIT;
-        if ((this->actor.colChkInfo.damageEffect != 0) && (this->actor.colChkInfo.damageEffect != 6)) {
-            this->collider2.base.atFlags = this->collider2.elements[0].info.toucherFlags = AT_NONE; // also TOUCH_NONE
-            this->collider2.elements[0].info.toucher.dmgFlags = this->collider2.elements[0].info.toucher.damage = 0;
+    if ((this->colliderJntSph.base.acFlags & AC_HIT) && !this->retreat) {
+        this->colliderJntSph.base.acFlags &= ~AC_HIT;
+        if ((this->actor.colChkInfo.damageReaction != 0) && (this->actor.colChkInfo.damageReaction != 6)) {
+            this->colliderJntSph.base.atFlags = this->colliderJntSph.elements[0].base.atElemFlags =
+                AT_NONE; // also ATELEM_NONE
+            this->colliderJntSph.elements[0].base.atDmgInfo.dmgFlags =
+                this->colliderJntSph.elements[0].base.atDmgInfo.damage = 0;
             if (player->unk_844 != 0) {
                 this->unk_258 = player->unk_845;
             }
@@ -523,13 +557,13 @@ void EnDh_Update(Actor* thisx, PlayState* play) {
         if (((this->curAction != DH_DAMAGE) && (this->actor.shape.yOffset == 0.0f)) ||
             ((player->unk_844 != 0) && (player->unk_845 != this->unk_258))) {
 
-            CollisionCheck_SetAC(play, &play->colChkCtx, &this->collider2.base);
-            CollisionCheck_SetAT(play, &play->colChkCtx, &this->collider2.base);
+            CollisionCheck_SetAC(play, &play->colChkCtx, &this->colliderJntSph.base);
+            CollisionCheck_SetAT(play, &play->colChkCtx, &this->colliderJntSph.base);
             CollisionCheck_SetAT(play, &play->colChkCtx, &this->collider1.base);
         }
     } else {
         CollisionCheck_SetOC(play, &play->colChkCtx, &this->collider1.base);
-        CollisionCheck_SetOC(play, &play->colChkCtx, &this->collider2.base);
+        CollisionCheck_SetOC(play, &play->colChkCtx, &this->colliderJntSph.base);
     }
 }
 
@@ -541,7 +575,7 @@ void EnDh_PostLimbDraw(PlayState* play, s32 limbIndex, Gfx** dList, Vec3s* rot, 
         Matrix_MultVec3f(&headOffset, &this->headPos);
         Matrix_Push();
         Matrix_Translate(headOffset.x, headOffset.y, headOffset.z, MTXMODE_APPLY);
-        Collider_UpdateSpheres(1, &this->collider2);
+        Collider_UpdateSpheres(1, &this->colliderJntSph);
         Matrix_Pop();
     }
 }
@@ -577,8 +611,7 @@ void EnDh_Draw(Actor* thisx, PlayState* play) {
         Matrix_Translate(0.0f, -this->actor.shape.yOffset, 0.0f, MTXMODE_APPLY);
         Matrix_Scale(this->dirtWaveSpread * 0.01f, this->dirtWaveHeight * 0.01f, this->dirtWaveSpread * 0.01f,
                      MTXMODE_APPLY);
-        gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_en_dh.c", 1160),
-                  G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+        MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_en_dh.c", 1160);
         gSPDisplayList(POLY_XLU_DISP++, object_dh_DL_007FC0);
     }
     CLOSE_DISPS(play->state.gfxCtx, "../z_en_dh.c", 1166);

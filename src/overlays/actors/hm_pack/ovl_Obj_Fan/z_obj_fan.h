@@ -2,7 +2,8 @@
 #define Z_OBJ_FAN_H
 
 #include "ultra64.h"
-#include "global.h"
+#include "actor.h"
+#include "play_state.h"
 
 struct ObjFan;
 

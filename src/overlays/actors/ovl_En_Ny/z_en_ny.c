@@ -1,7 +1,24 @@
 #include "z_en_ny.h"
+
+#include "libc64/math64.h"
+#include "array_count.h"
+#include "attributes.h"
+#include "gfx.h"
+#include "gfx_setupdl.h"
+#include "ichain.h"
+#include "printf.h"
+#include "rand.h"
+#include "sfx.h"
+#include "sys_matrix.h"
+#include "translation.h"
+#include "z_en_item00.h"
+#include "z_lib.h"
+#include "effect.h"
+#include "play_state.h"
+
 #include "assets/objects/object_ny/object_ny.h"
 
-#define FLAGS (ACTOR_FLAG_0 | ACTOR_FLAG_2)
+#define FLAGS (ACTOR_FLAG_ATTENTION_ENABLED | ACTOR_FLAG_HOSTILE)
 
 void EnNy_Init(Actor* thisx, PlayState* play);
 void EnNy_Destroy(Actor* thisx, PlayState* play);
@@ -23,7 +40,7 @@ void EnNy_SetupDie(EnNy* this, PlayState* play);
 void EnNy_DrawDeathEffect(Actor* thisx, PlayState* play);
 void func_80ABD3B8(EnNy* this, f32, f32);
 
-ActorInit En_Ny_InitVars = {
+ActorProfile En_Ny_Profile = {
     /**/ ACTOR_EN_NY,
     /**/ ACTORCAT_ENEMY,
     /**/ FLAGS,
@@ -35,30 +52,30 @@ ActorInit En_Ny_InitVars = {
     /**/ EnNy_Draw,
 };
 
-static ColliderJntSphElementInit sJntSphElementsInit[1] = {
+static ColliderJntSphElementInit sJntSphElementsInit[] = {
     {
         {
-            ELEMTYPE_UNK0,
-            { 0xFFCFFFFF, 0x04, 0x08 },
-            { 0xFFCFFFFF, 0x00, 0x00 },
-            TOUCH_ON | TOUCH_SFX_NORMAL,
-            BUMP_ON,
+            ELEM_MATERIAL_UNK0,
+            { 0xFFCFFFFF, HIT_SPECIAL_EFFECT_KNOCKBACK, 0x08 },
+            { 0xFFCFFFFF, HIT_BACKLASH_NONE, 0x00 },
+            ATELEM_ON | ATELEM_SFX_NORMAL,
+            ACELEM_ON,
             OCELEM_ON,
         },
         { 0, { { 0, 0, 0 }, 15 }, 100 },
     },
 };
 
-static ColliderJntSphInit sColliderInit = {
+static ColliderJntSphInit sColliderJntSphInit = {
     {
-        COLTYPE_NONE,
+        COL_MATERIAL_NONE,
         AT_ON | AT_TYPE_ENEMY,
         AC_ON | AC_TYPE_PLAYER,
         OC1_ON | OC1_TYPE_ALL,
         OC2_TYPE_1,
         COLSHAPE_JNTSPH,
     },
-    1,
+    ARRAY_COUNT(sJntSphElementsInit),
     sJntSphElementsInit,
 };
 
@@ -99,8 +116,8 @@ static DamageTable sDamageTable = {
 
 static InitChainEntry sInitChain[] = {
     ICHAIN_S8(naviEnemyId, NAVI_ENEMY_SPIKE, ICHAIN_CONTINUE),
-    ICHAIN_U8(targetMode, 2, ICHAIN_CONTINUE),
-    ICHAIN_F32(targetArrowOffset, 30, ICHAIN_STOP),
+    ICHAIN_U8(attentionRangeType, ATTENTION_RANGE_2, ICHAIN_CONTINUE),
+    ICHAIN_F32(lockOnArrowOffset, 30, ICHAIN_STOP),
 };
 
 void EnNy_Init(Actor* thisx, PlayState* play) {
@@ -110,7 +127,7 @@ void EnNy_Init(Actor* thisx, PlayState* play) {
     this->actor.colChkInfo.damageTable = &sDamageTable;
     this->actor.colChkInfo.health = 2;
     Collider_InitJntSph(play, &this->collider);
-    Collider_SetJntSph(play, &this->collider, &this->actor, &sColliderInit, this->elements);
+    Collider_SetJntSph(play, &this->collider, &this->actor, &sColliderJntSphInit, this->colliderElements);
     ActorShape_Init(&this->actor.shape, 0.0f, ActorShadow_DrawCircle, 20.0f);
     this->unk_1CA = 0;
     this->unk_1D0 = 0;
@@ -126,8 +143,7 @@ void EnNy_Init(Actor* thisx, PlayState* play) {
     this->unk_1E8 = 0.0f;
     this->unk_1E0 = 0.25f;
     if (this->actor.params == 0) {
-        // "New initials"
-        osSyncPrintf("ニュウ イニシャル[ %d ] ！！\n", this->actor.params);
+        PRINTF(T("ニュウ イニシャル[ %d ] ！！\n", "New init [ %d ] !!\n"), this->actor.params);
         this->actor.colChkInfo.mass = 0;
         this->unk_1D4 = 0;
         this->unk_1D8 = 0xFF;
@@ -135,12 +151,11 @@ void EnNy_Init(Actor* thisx, PlayState* play) {
         func_80ABCDBC(this);
     } else {
         // This mode is unused in the final game
-        // "Dummy new initials"
-        osSyncPrintf("ダミーニュウ イニシャル[ %d ] ！！\n", this->actor.params);
-        osSyncPrintf("En_Ny_actor_move2[ %x ] ！！\n", EnNy_UpdateUnused);
-        this->actor.colChkInfo.mass = 0xFF;
-        this->collider.base.colType = COLTYPE_METAL;
+        PRINTF(T("ダミーニュウ イニシャル[ %d ] ！！\n", "Dummy new init [ %d ] !!\n"), this->actor.params);
+        PRINTF("En_Ny_actor_move2[ %x ] ！！\n", EnNy_UpdateUnused);
+        this->actor.colChkInfo.mass = MASS_IMMOVABLE;
         this->actor.update = EnNy_UpdateUnused;
+        this->collider.base.colMaterial = COL_MATERIAL_METAL;
     }
 }
 
@@ -152,7 +167,7 @@ void EnNy_Destroy(Actor* thisx, PlayState* play) {
 void func_80ABCD40(EnNy* this) {
     f32 temp;
 
-    temp = (this->actor.yDistToWater > 0.0f) ? 0.7f : 1.0f;
+    temp = (this->actor.depthInWater > 0.0f) ? 0.7f : 1.0f;
     this->unk_1E8 = 2.8f * temp;
 }
 
@@ -224,8 +239,8 @@ void EnNy_Move(EnNy* this, PlayState* play) {
     f32 yawDiff;
     s32 stoneTimer;
 
-    if (!(this->unk_1F0 < this->actor.yDistToWater)) {
-        func_8002F974(&this->actor, NA_SE_EN_NYU_MOVE - SFX_FLAG);
+    if (!(this->unk_1F0 < this->actor.depthInWater)) {
+        Actor_PlaySfx_Flagged(&this->actor, NA_SE_EN_NYU_MOVE - SFX_FLAG);
     }
     func_80ABCD40(this);
     stoneTimer = this->stoneTimer;
@@ -238,7 +253,7 @@ void EnNy_Move(EnNy* this, PlayState* play) {
         this->actor.world.rot.y = this->actor.shape.rot.y;
         yawDiff = Math_FAtan2F(this->actor.yDistToPlayer, this->actor.xzDistToPlayer);
         this->actor.speed = fabsf(cosf(yawDiff) * this->unk_1E8);
-        if (this->unk_1F0 < this->actor.yDistToWater) {
+        if (this->unk_1F0 < this->actor.depthInWater) {
             this->unk_1EC = sinf(yawDiff) * this->unk_1E8;
         }
     }
@@ -252,7 +267,7 @@ void EnNy_TurnToStone(EnNy* this, PlayState* play) {
     if (phi_f0 <= 0.25f) {
         phi_f0 = 0.25f;
         if (this->actor.bgCheckFlags & BGCHECKFLAG_GROUND_TOUCH) {
-            if (!(this->unk_1F0 < this->actor.yDistToWater)) {
+            if (!(this->unk_1F0 < this->actor.depthInWater)) {
                 Actor_PlaySfx(&this->actor, NA_SE_EN_DODO_M_GND);
             }
             this->actor.bgCheckFlags &= ~BGCHECKFLAG_GROUND_TOUCH;
@@ -305,11 +320,11 @@ s32 EnNy_CollisionCheck(EnNy* this, PlayState* play) {
     } else {
         if (this->collider.base.acFlags & AC_HIT) {
             this->collider.base.acFlags &= ~AC_HIT;
-            effectPos.x = this->collider.elements[0].info.bumper.hitPos.x;
-            effectPos.y = this->collider.elements[0].info.bumper.hitPos.y;
-            effectPos.z = this->collider.elements[0].info.bumper.hitPos.z;
+            effectPos.x = this->collider.elements[0].base.acDmgInfo.hitPos.x;
+            effectPos.y = this->collider.elements[0].base.acDmgInfo.hitPos.y;
+            effectPos.z = this->collider.elements[0].base.acDmgInfo.hitPos.z;
             if ((this->unk_1E0 == 0.25f) && (this->unk_1D4 == 0xFF)) {
-                switch (this->actor.colChkInfo.damageEffect) {
+                switch (this->actor.colChkInfo.damageReaction) {
                     case 0xE:
                         sp3F = 1;
                         FALLTHROUGH;
@@ -331,7 +346,7 @@ s32 EnNy_CollisionCheck(EnNy* this, PlayState* play) {
             this->stoneTimer = 0;
             if (this->actor.colChkInfo.health == 0) {
                 this->actor.shape.shadowAlpha = 0;
-                this->actor.flags &= ~ACTOR_FLAG_0;
+                this->actor.flags &= ~ACTOR_FLAG_ATTENTION_ENABLED;
                 this->unk_1D0 = sp3F;
                 Enemy_StartFinishingBlow(play, &this->actor);
                 return 1;
@@ -346,9 +361,9 @@ s32 EnNy_CollisionCheck(EnNy* this, PlayState* play) {
 void func_80ABD3B8(EnNy* this, f32 arg1, f32 arg2) {
     if (this->unk_1E8 == 0.0f) {
         this->actor.gravity = -0.4f;
-    } else if (!(arg1 < this->actor.yDistToWater)) {
+    } else if (!(arg1 < this->actor.depthInWater)) {
         this->actor.gravity = -0.4f;
-    } else if (arg2 < this->actor.yDistToWater) {
+    } else if (arg2 < this->actor.depthInWater) {
         this->actor.gravity = 0.0;
         if (this->unk_1EC < this->actor.velocity.y) {
             this->actor.velocity.y -= 0.4f;
@@ -368,7 +383,6 @@ void EnNy_Update(Actor* thisx, PlayState* play) {
     EnNy* this = (EnNy*)thisx;
     f32 temp_f20;
     f32 temp_f22;
-    s32 i;
 
     this->timer++;
     temp_f20 = this->unk_1E0 - 0.25f;
@@ -391,6 +405,8 @@ void EnNy_Update(Actor* thisx, PlayState* play) {
     this->unk_1F0 = temp_f22;
     this->actor.world.pos.y += temp_f22;
     if (EnNy_CollisionCheck(this, play) != 0) {
+        s32 i;
+
         for (i = 0; i < 8; i++) {
             this->unk_1F8[i].x = (Rand_CenteredFloat(20.0f) + this->actor.world.pos.x);
             this->unk_1F8[i].y = (Rand_CenteredFloat(20.0f) + this->actor.world.pos.y);
@@ -417,7 +433,7 @@ void EnNy_SetupDie(EnNy* this, PlayState* play) {
     Vec3f effectAccel = { 0.0f, 0.1f, 0.0f };
 
     if (this->timer >= 2) {
-        if (this->actor.yDistToWater > 0.0f) {
+        if (this->actor.depthInWater > 0.0f) {
             for (i = 0; i < 10; i++) {
                 effectPos.x = Rand_CenteredFloat(30.0f) + this->actor.world.pos.x;
                 effectPos.y = Rand_CenteredFloat(30.0f) + this->actor.world.pos.y;
@@ -452,7 +468,7 @@ void EnNy_SetupDie(EnNy* this, PlayState* play) {
 void EnNy_Die(EnNy* this, PlayState* play) {
     s32 i;
 
-    if (this->actor.yDistToWater > 0.0f) {
+    if (this->actor.depthInWater > 0.0f) {
         for (i = 0; i < 8; i += 1) {
             this->unk_1F8[i].x += this->unk_1F8[i + 8].x;
             this->unk_1F8[i].y += this->unk_1F8[i + 8].y;
@@ -530,8 +546,7 @@ void EnNy_Draw(Actor* thisx, PlayState* play) {
     Collider_UpdateSpheres(0, &this->collider);
     func_8002ED80(&this->actor, play, 1);
     Gfx_SetupDL_25Xlu(play->state.gfxCtx);
-    gSPMatrix(POLY_XLU_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_en_ny.c", 845),
-              G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+    MATRIX_FINALIZE_AND_LOAD(POLY_XLU_DISP++, play->state.gfxCtx, "../z_en_ny.c", 845);
     gDPPipeSync(POLY_XLU_DISP++);
     gDPSetRenderMode(POLY_XLU_DISP++, G_RM_PASS, G_RM_AA_ZB_XLU_SURF2);
     gDPSetEnvColor(POLY_XLU_DISP++, 0, 0, 0, this->unk_1D8);
@@ -544,8 +559,7 @@ void EnNy_Draw(Actor* thisx, PlayState* play) {
         Matrix_Scale(this->unk_1E0, this->unk_1E0, this->unk_1E0, MTXMODE_APPLY);
         func_8002EBCC(&this->actor, play, 1);
         Gfx_SetupDL_25Opa(play->state.gfxCtx);
-        gSPMatrix(POLY_OPA_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_en_ny.c", 868),
-                  G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+        MATRIX_FINALIZE_AND_LOAD(POLY_OPA_DISP++, play->state.gfxCtx, "../z_en_ny.c", 868);
         gSPDisplayList(POLY_OPA_DISP++, gEnNySpikeDL);
     }
     CLOSE_DISPS(play->state.gfxCtx, "../z_en_ny.c", 872);
@@ -583,8 +597,7 @@ void EnNy_DrawDeathEffect(Actor* thisx, PlayState* play) {
             Matrix_Translate(temp->x, temp->y, temp->z, MTXMODE_NEW);
             scale = this->actor.scale.x * 0.4f * (1.0f + (i * 0.04f));
             Matrix_Scale(scale, scale, scale, MTXMODE_APPLY);
-            gSPMatrix(POLY_OPA_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_en_ny.c", 912),
-                      G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+            MATRIX_FINALIZE_AND_LOAD(POLY_OPA_DISP++, play->state.gfxCtx, "../z_en_ny.c", 912);
             gSPDisplayList(POLY_OPA_DISP++, gEnNyRockBodyDL);
         }
     }

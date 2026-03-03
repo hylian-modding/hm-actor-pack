@@ -28,9 +28,18 @@
  */
 
 #include "ladder.h"
-#include "assets_hm_pack/objects/object_ladder/object_ladder.h"
 
-#define FLAGS (ACTOR_FLAG_4 | ACTOR_FLAG_5)
+#include "actor.h"
+#include "collision_check.h"
+#include "gfx.h"
+#include "gfx_setupdl.h"
+#include "one_point_cutscene.h"
+#include "play_state.h"
+#include "sfx.h"
+
+#include "assets/objects/hm_pack/object_ladder/object_ladder.h"
+
+#define FLAGS (ACTOR_FLAG_UPDATE_CULLING_DISABLED | ACTOR_FLAG_DRAW_CULLING_DISABLED)
 
 void Ladder_Init(Actor* thisx, PlayState* play);
 void Ladder_Destroy(Actor* thisx, PlayState* play);
@@ -45,7 +54,7 @@ void Ladder_IdleNotFallen(Ladder* this, PlayState* play);
 void Ladder_Falling(Ladder* this, PlayState* play);
 void Ladder_DoNothing(Ladder* this, PlayState* play);
 
-const ActorInit Ladder_InitVars = {
+const ActorProfile Ladder_Profile = {
     ACTOR_LADDER,
     ACTORCAT_BG,
     FLAGS,
@@ -59,7 +68,7 @@ const ActorInit Ladder_InitVars = {
 
 static ColliderCylinderInit sCylinderInit = {
     {
-        COLTYPE_TREE,
+        COL_MATERIAL_TREE,
         AT_NONE,
         AC_ON | AC_TYPE_PLAYER,
         OC1_ON | OC1_TYPE_ALL,
@@ -67,11 +76,11 @@ static ColliderCylinderInit sCylinderInit = {
         COLSHAPE_CYLINDER,
     },
     {
-        ELEMTYPE_UNK0,
+        ELEM_MATERIAL_UNK0,
         { 0x00000000, 0x00, 0x00 },
         { DMG_ARROW | DMG_SLINGSHOT, 0x00, 0x00 },
-        TOUCH_NONE,
-        BUMP_ON | BUMP_NO_AT_INFO | BUMP_NO_DAMAGE | BUMP_NO_SWORD_SFX | BUMP_NO_HITMARK,
+        ATELEM_NONE,
+        ACELEM_ON | ACELEM_NO_AT_INFO | ACELEM_NO_DAMAGE | ACELEM_NO_SWORD_SFX | ACELEM_NO_HITMARK,
         OCELEM_NONE,
     },
     { 20, 0, 0, { 0, 0, 0 } },

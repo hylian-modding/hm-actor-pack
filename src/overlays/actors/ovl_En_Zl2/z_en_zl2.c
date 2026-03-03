@@ -5,13 +5,28 @@
  */
 
 #include "z_en_zl2.h"
-#include "terminal.h"
-
 #include "overlays/actors/ovl_Door_Warp1/z_door_warp1.h"
+
+#include "libc64/math64.h"
+#include "gfx.h"
+#include "gfx_setupdl.h"
+#include "printf.h"
+#include "regs.h"
+#include "segmented_address.h"
+#include "sfx.h"
+#include "sys_matrix.h"
+#include "terminal.h"
+#include "translation.h"
+#include "z_lib.h"
+#include "frame_advance.h"
+#include "play_state.h"
+#include "player.h"
+#include "save.h"
+
 #include "assets/objects/object_zl2/object_zl2.h"
 #include "assets/objects/object_zl2_anime1/object_zl2_anime1.h"
 
-#define FLAGS ACTOR_FLAG_4
+#define FLAGS ACTOR_FLAG_UPDATE_CULLING_DISABLED
 
 void EnZl2_Init(Actor* thisx, PlayState* play);
 void EnZl2_Destroy(Actor* thisx, PlayState* play);
@@ -85,7 +100,7 @@ static EnZl2DrawFunc sDrawFuncs[] = {
     func_80B525D4,
 };
 
-ActorInit En_Zl2_InitVars = {
+ActorProfile En_Zl2_Profile = {
     /**/ ACTOR_EN_ZL2,
     /**/ ACTORCAT_NPC,
     /**/ FLAGS,
@@ -212,8 +227,11 @@ s32 EnZl2_UpdateSkelAnime(EnZl2* this) {
 
 CsCmdActorCue* EnZl2_GetCue(PlayState* play, s32 cueChannel) {
     if (play->csCtx.state != CS_STATE_IDLE) {
-        return play->csCtx.actorCues[cueChannel];
+        CsCmdActorCue* cue = play->csCtx.actorCues[cueChannel];
+
+        return cue;
     }
+
     return NULL;
 }
 
@@ -334,7 +352,11 @@ void func_80B4EF64(EnZl2* this, s16 arg1, s32 arg2) {
         }
 
         if (arg2 == 2) {
+            s32 pad;
+
             if ((this->action == 5) || (this->action == 30)) {
+                s32 temp_t0;
+
                 curFrame = this->skelAnime.curFrame;
                 unk_278 = this->unk_278;
                 temp_t0 = (s32)((3500.0f * curFrame) / unk_278) + phi_a0;
@@ -343,13 +365,15 @@ void func_80B4EF64(EnZl2* this, s16 arg1, s32 arg2) {
                     phi_v0 /= -2;
                 }
             } else if ((this->action == 6) || (this->action == 31)) {
-                temp_t0 = phi_a0 + 0xDAC;
+                s32 temp_t0 = phi_a0 + 0xDAC;
+
                 if (temp_t0 >= temp_v1) {
                     temp_v1 = temp_t0;
                     phi_v0 /= -2;
                 }
             } else if (this->action == 20) {
-                temp_t0 = phi_a0 - 0x3E8;
+                s32 temp_t0 = phi_a0 - 0x3E8;
+
                 if (temp_t0 >= temp_v1) {
                     temp_v1 = temp_t0;
                     phi_v0 /= -2;
@@ -436,17 +460,25 @@ void func_80B4F230(EnZl2* this, s16 arg1, s32 arg2) {
 s32 func_80B4F45C(PlayState* play, s32 limbIndex, Gfx** dList, Vec3f* pos, Vec3s* rot, void* thisx, Gfx** gfx) {
     s32 pad;
     EnZl2* this = (EnZl2*)thisx;
-    Mtx* sp74;
-    MtxF sp34;
-    Vec3s sp2C;
-    s16 pad2;
-    s16* unk_1DC = this->unk_1DC;
 
     if (limbIndex == 14) {
-        sp74 = GRAPH_ALLOC(play->state.gfxCtx, sizeof(Mtx) * 7);
+        Mtx* sp74 = GRAPH_ALLOC(play->state.gfxCtx, sizeof(Mtx) * 7);
+        MtxF sp34;
+        Vec3s sp2C;
+        s16 pad2;
+        s16* unk_1DC = this->unk_1DC;
+
         gSPSegment((*gfx)++, 0x0C, sp74);
 
         Matrix_Push();
+
+#if PLATFORM_N64
+        // Anti-piracy check, Zelda's hair is misshapen if the check fails
+        if (osCicId != 6105) {
+            Matrix_Scale(2.0f, 0.5f, 2.0f, MTXMODE_APPLY);
+        }
+#endif
+
         Matrix_Translate(pos->x, pos->y, pos->z, MTXMODE_APPLY);
         Matrix_RotateZYX(rot->x, rot->y, rot->z, MTXMODE_APPLY);
         Matrix_Push();
@@ -549,8 +581,7 @@ void EnZl2_PostLimbDraw(PlayState* play, s32 limbIndex, Gfx** dList, Vec3s* rot,
                 Matrix_Translate(180.0f, 979.0f, -375.0f, MTXMODE_APPLY);
                 Matrix_RotateZYX(-0x5DE7, -0x53E9, 0x3333, MTXMODE_APPLY);
                 Matrix_Scale(1.2f, 1.2f, 1.2f, MTXMODE_APPLY);
-                gSPMatrix((*gfx)++, MATRIX_NEW(play->state.gfxCtx, "../z_en_zl2.c", 1253),
-                          G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+                MATRIX_FINALIZE_AND_LOAD((*gfx)++, play->state.gfxCtx, "../z_en_zl2.c", 1253);
                 gSPDisplayList((*gfx)++, gZelda2OcarinaDL);
             }
             Matrix_Pop();
@@ -561,7 +592,7 @@ void EnZl2_PostLimbDraw(PlayState* play, s32 limbIndex, Gfx** dList, Vec3s* rot,
 void func_80B4FCCC(EnZl2* this, PlayState* play) {
     s32 objectSlot = this->zl2Anime1ObjectSlot;
 
-    gSegments[6] = VIRTUAL_TO_PHYSICAL(play->objectCtx.slots[objectSlot].segment);
+    gSegments[6] = OS_K0_TO_PHYSICAL(play->objectCtx.slots[objectSlot].segment);
 }
 
 void func_80B4FD00(EnZl2* this, AnimationHeader* animation, u8 arg2, f32 morphFrames, s32 arg4) {
@@ -974,7 +1005,8 @@ void func_80B50A04(EnZl2* this, PlayState* play) {
                     func_80B50644(this, play);
                     break;
                 default:
-                    osSyncPrintf("En_Zl2_inAgain_Check_DemoMode:そんな動作は無い!!!!!!!!\n");
+                    PRINTF(T("En_Zl2_inAgain_Check_DemoMode:そんな動作は無い!!!!!!!!\n",
+                             "En_Zl2_inAgain_Check_DemoMode: There is no such action!!!!!!!!\n"));
             }
             this->cueId = nextCueId;
         }
@@ -1365,7 +1397,8 @@ void func_80B51948(EnZl2* this, PlayState* play) {
                     func_80B513A8(this, play);
                     break;
                 default:
-                    osSyncPrintf("En_Zl2_inEnding_Check_DemoMode:そんな動作は無い!!!!!!!!\n");
+                    PRINTF(T("En_Zl2_inEnding_Check_DemoMode:そんな動作は無い!!!!!!!!\n",
+                             "En_Zl2_inEnding_Check_DemoMode: There is no such action!!!!!!!!\n"));
             }
             this->cueId = nextCueId;
         }
@@ -1529,7 +1562,8 @@ void func_80B51FA8(EnZl2* this, PlayState* play) {
                     Actor_Kill(&this->actor);
                     break;
                 default:
-                    osSyncPrintf("En_Zl2_inRunning_Check_DemoMode:そんな動作は無い!!!!!!!!\n");
+                    PRINTF(T("En_Zl2_inRunning_Check_DemoMode:そんな動作は無い!!!!!!!!\n",
+                             "En_Zl2_inRunning_Check_DemoMode: There is no such action!!!!!!!!\n"));
                     break;
             }
             this->cueId = nextCueId;
@@ -1563,11 +1597,14 @@ void func_80B52114(EnZl2* this, PlayState* play) {
         case 4:
             func_80B51D0C(this, play);
             break;
+#if DEBUG_FEATURES
         case 0:
             func_80B4FD90(this, play);
             break;
+#endif
         default:
-            osSyncPrintf(VT_FGCOL(RED) " En_Oa2 の arg_data がおかしい!!!!!!!!!!!!!!!!!!!!!!!!!\n" VT_RST);
+            PRINTF(VT_FGCOL(RED) T(" En_Oa2 の arg_data がおかしい!!!!!!!!!!!!!!!!!!!!!!!!!\n",
+                                   " En_Oa2 arg_data is wrong!!!!!!!!!!!!!!!!!!!!!!!!!\n") VT_RST);
             func_80B4FD90(this, play);
     }
 }
@@ -1578,10 +1615,13 @@ void func_80B521A0(EnZl2* this, PlayState* play) {
     s32 objectSlot = Object_GetSlot(objectCtx, OBJECT_ZL2_ANIME1);
     s32 pad2;
 
+#if DEBUG_FEATURES
     if (objectSlot < 0) {
-        osSyncPrintf(VT_FGCOL(RED) "En_Zl2_main_bankアニメーションのバンクを読めない!!!!!!!!!!!!\n" VT_RST);
+        PRINTF(VT_FGCOL(RED) T("En_Zl2_main_bankアニメーションのバンクを読めない!!!!!!!!!!!!\n",
+                               "En_Zl2_main_bank Can't read animation bank!!!!!!!!!!!!\n") VT_RST);
         return;
     }
+#endif
 
     if (Object_IsLoaded(objectCtx, objectSlot)) {
         this->zl2Anime1ObjectSlot = objectSlot;
@@ -1595,7 +1635,8 @@ void EnZl2_Update(Actor* thisx, PlayState* play) {
     EnZl2* this = (EnZl2*)thisx;
 
     if (this->action < 0 || this->action >= 0x24 || sActionFuncs[this->action] == NULL) {
-        osSyncPrintf(VT_FGCOL(RED) "メインモードがおかしい!!!!!!!!!!!!!!!!!!!!!!!!!\n" VT_RST);
+        PRINTF(VT_FGCOL(RED) T("メインモードがおかしい!!!!!!!!!!!!!!!!!!!!!!!!!\n",
+                               "The main mode is wrong!!!!!!!!!!!!!!!!!!!!!!!!!\n") VT_RST);
         return;
     }
     sActionFuncs[this->action](this, play);
@@ -1626,7 +1667,8 @@ s32 EnZl2_OverrideLimbDraw(PlayState* play, s32 limbIndex, Gfx** dList, Vec3f* p
 
     if (this->overrideLimbDrawConfig < 0 || this->overrideLimbDrawConfig > 0 ||
         sOverrideLimbDrawFuncs[this->overrideLimbDrawConfig] == NULL) {
-        osSyncPrintf(VT_FGCOL(RED) "描画前処理モードがおかしい!!!!!!!!!!!!!!!!!!!!!!!!!\n" VT_RST);
+        PRINTF(VT_FGCOL(RED) T("描画前処理モードがおかしい!!!!!!!!!!!!!!!!!!!!!!!!!\n",
+                               "The pre-drawing mode is wrong!!!!!!!!!!!!!!!!!!!!!!!!!\n") VT_RST);
         return 0;
     }
     return sOverrideLimbDrawFuncs[this->overrideLimbDrawConfig](play, limbIndex, dList, pos, rot, thisx, gfx);
@@ -1691,7 +1733,8 @@ void EnZl2_Draw(Actor* thisx, PlayState* play) {
     EnZl2* this = (EnZl2*)thisx;
 
     if ((this->drawConfig < 0) || (this->drawConfig >= 3) || (sDrawFuncs[this->drawConfig] == NULL)) {
-        osSyncPrintf(VT_FGCOL(RED) "描画モードがおかしい!!!!!!!!!!!!!!!!!!!!!!!!!\n" VT_RST);
+        PRINTF(VT_FGCOL(RED) T("描画モードがおかしい!!!!!!!!!!!!!!!!!!!!!!!!!\n",
+                               "The drawing mode is wrong!!!!!!!!!!!!!!!!!!!!!!!!!\n") VT_RST);
         return;
     }
     sDrawFuncs[this->drawConfig](this, play);

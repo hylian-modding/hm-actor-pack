@@ -5,7 +5,16 @@
  */
 
 #include "platforms.h"
-#include "assets_hm_pack/objects/object_platforms/object_platforms.h"
+
+#include "actor.h"
+#include "gfx.h"
+#include "gfx_setupdl.h"
+#include "ichain.h"
+#include "play_state.h"
+#include "regs.h"
+#include "z_lib.h"
+
+#include "assets/objects/hm_pack/object_platforms/object_platforms.h"
 
 #define PLATFORM_TYPE(this) ((this->dyna.actor.params >> 0xC) & 0xF) // 0xF000
 #define SWITCH_FLAG(this) (this->dyna.actor.params & 0x3F)           // 0x00FF
@@ -38,7 +47,7 @@
  *  Cone platform    = 206 units
  */
 
-#define FLAGS (ACTOR_FLAG_4)
+#define FLAGS (ACTOR_FLAG_UPDATE_CULLING_DISABLED)
 
 #define SECONDS_TO_FRAMES(sec) (sec * (60 / R_UPDATE_RATE))
 static u16 sTimer = 0;
@@ -72,7 +81,7 @@ typedef enum {
     PLATFORM_TYPE_CONE_GRASS
 } PlatformType;
 
-const ActorInit Platforms_InitVars = {
+const ActorProfile Platforms_Profile = {
     ACTOR_PLATFORMS,
     ACTORCAT_BG,
     FLAGS,
@@ -86,9 +95,9 @@ const ActorInit Platforms_InitVars = {
 
 static InitChainEntry sInitChain[] = {
     ICHAIN_VEC3F_DIV1000(scale, 100, ICHAIN_CONTINUE),
-    ICHAIN_F32(uncullZoneForward, 3000, ICHAIN_CONTINUE),
-    ICHAIN_F32(uncullZoneScale, 500, ICHAIN_CONTINUE),
-    ICHAIN_F32(uncullZoneDownward, 1000, ICHAIN_STOP),
+    ICHAIN_F32(cullingVolumeDistance, 3000, ICHAIN_CONTINUE),
+    ICHAIN_F32(cullingVolumeScale, 500, ICHAIN_CONTINUE),
+    ICHAIN_F32(cullingVolumeDownward, 1000, ICHAIN_STOP),
 };
 
 void Platforms_Init(Actor* thisx, PlayState* play) {

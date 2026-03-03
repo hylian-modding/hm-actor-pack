@@ -1,8 +1,10 @@
+#include "array_count.h"
 #include "ultra64.h"
-#include "global.h"
 
 s32 __osPfsInodeCacheChannel = -1;
 u8 __osPfsInodeCacheBank = 250;
+
+__OSInode __osPfsInodeCache;
 
 u16 __osSumcalc(u8* ptr, s32 length) {
     s32 i;

@@ -4,10 +4,34 @@
  * Description: Displays the Nintendo Logo
  */
 
-#include "global.h"
+#include "libu64/gfxprint.h"
+#if PLATFORM_N64
+#include "cic6105.h"
+#include "n64dd.h"
+#endif
+
 #include "alloca.h"
+#include "build.h"
+#include "console_logo_state.h"
+#include "gfx.h"
+#include "gfx_setupdl.h"
+#include "padmgr.h"
+#include "printf.h"
+#include "regs.h"
+#include "segment_symbols.h"
+#include "sequence.h"
+#include "sys_matrix.h"
+#include "sys_debug_controller.h"
+#include "sys_freeze.h"
+#include "title_setup_state.h"
+#include "versions.h"
+#include "actor.h"
+#include "environment.h"
+#include "save.h"
+
 #include "assets/textures/nintendo_rogo_static/nintendo_rogo_static.h"
 
+#if DEBUG_FEATURES
 void ConsoleLogo_PrintBuildInfo(Gfx** gfxP) {
     Gfx* gfx;
     GfxPrint* printer;
@@ -22,18 +46,38 @@ void ConsoleLogo_PrintBuildInfo(Gfx** gfxP) {
     GfxPrint_Printf(printer, "NOT MARIO CLUB VERSION");
     GfxPrint_SetColor(printer, 255, 255, 255, 255);
     GfxPrint_SetPos(printer, 7, 23);
-    GfxPrint_Printf(printer, "[Creator:%s]", gBuildTeam);
+    GfxPrint_Printf(printer, "[Creator:%s]", gBuildCreator);
     GfxPrint_SetPos(printer, 7, 24);
     GfxPrint_Printf(printer, "[Date:%s]", gBuildDate);
     gfx = GfxPrint_Close(printer);
     GfxPrint_Destroy(printer);
     *gfxP = gfx;
 }
+#endif
 
-// Note: In other rom versions this function also updates unk_1D4, coverAlpha, addAlpha, visibleDuration to calculate
-// the fade-in/fade-out + the duration of the n64 logo animation
 void ConsoleLogo_Calc(ConsoleLogoState* this) {
+#if !PLATFORM_GC
+    if ((this->coverAlpha == 0) && (this->visibleDuration != 0)) {
+        this->unk_1D4--;
+        this->visibleDuration--;
+        if (this->unk_1D4 == 0) {
+            this->unk_1D4 = 400;
+        }
+    } else {
+        this->coverAlpha += this->addAlpha;
+        if (this->coverAlpha <= 0) {
+            this->coverAlpha = 0;
+            this->addAlpha = 3;
+        } else if (this->coverAlpha >= 255) {
+            this->coverAlpha = 255;
+            this->exit = true;
+        }
+    }
+    this->uls = this->ult & 0x7F;
+    this->ult++;
+#else
     this->exit = true;
+#endif
 }
 
 void ConsoleLogo_SetupView(ConsoleLogoState* this, f32 x, f32 y, f32 z) {
@@ -46,8 +90,8 @@ void ConsoleLogo_SetupView(ConsoleLogoState* this, f32 x, f32 y, f32 z) {
     eye.y = y;
     eye.z = z;
     up.x = up.z = 0.0f;
-    lookAt.x = lookAt.y = lookAt.z = 0.0f;
     up.y = 1.0f;
+    lookAt.x = lookAt.y = lookAt.z = 0.0f;
 
     View_SetPerspective(view, 30.0f, 10.0f, 12800.0f);
     View_LookAt(view, &eye, &lookAt, &up);
@@ -64,7 +108,8 @@ void ConsoleLogo_Draw(ConsoleLogoState* this) {
     Vec3f v3;
     Vec3f v1;
     Vec3f v2;
-    s32 pad2[2];
+    s32 pad2;
+    s32 pad3;
 
     OPEN_DISPS(this->state.gfxCtx, "../z_title.c", 395);
 
@@ -86,7 +131,7 @@ void ConsoleLogo_Draw(ConsoleLogoState* this) {
     Matrix_Scale(1.0, 1.0, 1.0, MTXMODE_APPLY);
     Matrix_RotateZYX(0, sTitleRotY, 0, MTXMODE_APPLY);
 
-    gSPMatrix(POLY_OPA_DISP++, MATRIX_NEW(this->state.gfxCtx, "../z_title.c", 424), G_MTX_LOAD);
+    MATRIX_FINALIZE_AND_LOAD(POLY_OPA_DISP++, this->state.gfxCtx, "../z_title.c", 424);
     gSPDisplayList(POLY_OPA_DISP++, gNintendo64LogoDL);
     Gfx_SetupDL_39Opa(this->state.gfxCtx);
     gDPPipeSync(POLY_OPA_DISP++);
@@ -128,13 +173,18 @@ void ConsoleLogo_Main(GameState* thisx) {
     ConsoleLogo_Calc(this);
     ConsoleLogo_Draw(this);
 
+#if DEBUG_FEATURES
     if (gIsCtrlr2Valid) {
         Gfx* gfx = POLY_OPA_DISP;
-        s32 pad;
 
         ConsoleLogo_PrintBuildInfo(&gfx);
         POLY_OPA_DISP = gfx;
     }
+#endif
+
+#if PLATFORM_IQUE
+    this->exit = true;
+#endif
 
     if (this->exit) {
         gSaveContext.seqId = (u8)NA_BGM_DISABLED;
@@ -150,15 +200,39 @@ void ConsoleLogo_Main(GameState* thisx) {
 void ConsoleLogo_Destroy(GameState* thisx) {
     ConsoleLogoState* this = (ConsoleLogoState*)thisx;
 
+#if PLATFORM_N64
+    if (this->unk_1E0) {
+        if (func_801C7818() != 0) {
+            func_800D31A0();
+        }
+        func_801C7268();
+    }
+#endif
+
     Sram_InitSram(&this->state, &this->sramCtx);
+
+#if PLATFORM_N64
+    func_800014E8();
+#endif
 }
 
 void ConsoleLogo_Init(GameState* thisx) {
     u32 size = (uintptr_t)_nintendo_rogo_staticSegmentRomEnd - (uintptr_t)_nintendo_rogo_staticSegmentRomStart;
     ConsoleLogoState* this = (ConsoleLogoState*)thisx;
 
+#if PLATFORM_N64
+    if ((D_80121210 != 0) && (D_80121211 != 0) && (D_80121212 == 0)) {
+        if (func_801C7658() != 0) {
+            func_800D31A0();
+        }
+        this->unk_1E0 = true;
+    } else {
+        this->unk_1E0 = false;
+    }
+#endif
+
     this->staticSegment = GAME_STATE_ALLOC(&this->state, size, "../z_title.c", 611);
-    osSyncPrintf("z_title.c\n");
+    PRINTF("z_title.c\n");
     ASSERT(this->staticSegment != NULL, "this->staticSegment != NULL", "../z_title.c", 614);
     DMA_REQUEST_SYNC(this->staticSegment, (uintptr_t)_nintendo_rogo_staticSegmentRomStart, size, "../z_title.c", 615);
     R_UPDATE_RATE = 1;
@@ -167,7 +241,17 @@ void ConsoleLogo_Init(GameState* thisx) {
     this->state.main = ConsoleLogo_Main;
     this->state.destroy = ConsoleLogo_Destroy;
     this->exit = false;
+
+#if OOT_VERSION < GC_US || PLATFORM_IQUE
+    if (!(gPadMgr.validCtrlrsMask & 1)) {
+        gSaveContext.fileNum = 0xFEDC;
+    } else {
+        gSaveContext.fileNum = 0xFF;
+    }
+#else
     gSaveContext.fileNum = 0xFF;
+#endif
+
     Sram_Alloc(&this->state, &this->sramCtx);
     this->ult = 0;
     this->unk_1D4 = 0x14;

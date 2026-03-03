@@ -7,7 +7,9 @@
  * Each file is assigned an uppercase ASCII letter as an identifier, the game name for each is marked as
  * 'ZELDA DEMO TOOL', encoded according to the N64 Font Code described in section 26.3 of the N64 Programming Manual.
  */
-#include "global.h"
+#include "mempak.h"
+#include "padmgr.h"
+#include "printf.h"
 
 #define MEMPAK_MAX_FILES 11
 
@@ -88,11 +90,11 @@ s32 Mempak_FindFiles(s32 controllerNum, char start, char end) {
         }
 
         bit <<= 1;
-        osSyncPrintf("mempak: find '%c' (%d)\n", letter, error);
+        PRINTF("mempak: find '%c' (%d)\n", letter, error);
     }
 
     PadMgr_ReleaseSerialEventQueue(&gPadMgr, serialEventQueue);
-    osSyncPrintf("mempak: find '%c' - '%c' %02x\n", start, end, bits);
+    PRINTF("mempak: find '%c' - '%c' %02x\n", start, end, bits);
     return bits;
 }
 
@@ -120,8 +122,8 @@ s32 Mempak_Write(s32 controllerNum, char letter, void* buffer, s32 offset, s32 s
         if (error == 0) {
             ret = true;
         }
-        osSyncPrintf("mempak: write %d byte '%c' (%d)->%d\n", size, letter,
-                     sMempakFiles[MEMPAK_LETTER_TO_INDEX(letter)], error);
+        PRINTF("mempak: write %d byte '%c' (%d)->%d\n", size, letter, sMempakFiles[MEMPAK_LETTER_TO_INDEX(letter)],
+               error);
     }
     PadMgr_ReleaseSerialEventQueue(&gPadMgr, serialEventQueue);
     return ret;
@@ -151,8 +153,8 @@ s32 Mempak_Read(s32 controllerNum, char letter, void* buffer, s32 offset, s32 si
         if (error == 0) {
             ret = true;
         }
-        osSyncPrintf("mempak: read %d byte '%c' (%d)<-%d\n", size, letter, sMempakFiles[MEMPAK_LETTER_TO_INDEX(letter)],
-                     error);
+        PRINTF("mempak: read %d byte '%c' (%d)<-%d\n", size, letter, sMempakFiles[MEMPAK_LETTER_TO_INDEX(letter)],
+               error);
     }
     PadMgr_ReleaseSerialEventQueue(&gPadMgr, serialEventQueue);
     return ret;
@@ -190,7 +192,7 @@ s32 Mempak_CreateFile(s32 controllerNum, char* letter, s32 size) {
             if (error == 0) {
                 ret = true;
             }
-            osSyncPrintf("mempak: alloc %d byte '%c' (%d)\n", size, *letter, error);
+            PRINTF("mempak: alloc %d byte '%c' (%d)\n", size, *letter, error);
         } else {
             // File already exists, delete then alloc
 
@@ -204,7 +206,7 @@ s32 Mempak_CreateFile(s32 controllerNum, char* letter, s32 size) {
             if (error == 0) {
                 ret |= true;
             }
-            osSyncPrintf("mempak: resize %d byte '%c' (%d)\n", size, *letter, error);
+            PRINTF("mempak: resize %d byte '%c' (%d)\n", size, *letter, error);
         }
     } else {
         // Find first free letter and create a file identified by it
@@ -218,7 +220,7 @@ s32 Mempak_CreateFile(s32 controllerNum, char* letter, s32 size) {
         sMempakExtName[0] = NCH(*letter);
         error = osPfsAllocateFile(&sMempakPfsHandle, sMempakCompanyCode, sMempakGameCode, sMempakGameName,
                                   sMempakExtName, size, &sMempakFiles[i]);
-        osSyncPrintf("mempak: alloc %d byte '%c' (%d) with search\n", size, *letter, error);
+        PRINTF("mempak: alloc %d byte '%c' (%d) with search\n", size, *letter, error);
         if (error == 0) {
             ret = true;
         }
@@ -246,7 +248,7 @@ s32 Mempak_DeleteFile(s32 controllerNum, char letter) {
     if (error == 0) {
         ret = true;
     }
-    osSyncPrintf("mempak: delete '%c' (%d)\n", letter, error);
+    PRINTF("mempak: delete '%c' (%d)\n", letter, error);
 
     PadMgr_ReleaseSerialEventQueue(&gPadMgr, serialEventQueue);
     return ret;

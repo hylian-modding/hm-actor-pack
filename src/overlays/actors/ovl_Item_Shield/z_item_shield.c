@@ -4,11 +4,25 @@
  * Description: Deku Shield
  */
 
-#include "terminal.h"
 #include "z_item_shield.h"
+
+#include "gfx.h"
+#include "gfx_setupdl.h"
+#include "printf.h"
+#include "rand.h"
+#include "segmented_address.h"
+#include "sys_math.h"
+#include "sys_matrix.h"
+#include "terminal.h"
+#include "z_lib.h"
+#include "effect.h"
+#include "item.h"
+#include "play_state.h"
+#include "player.h"
+
 #include "assets/objects/object_link_child/object_link_child.h"
 
-#define FLAGS ACTOR_FLAG_4
+#define FLAGS ACTOR_FLAG_UPDATE_CULLING_DISABLED
 
 void ItemShield_Init(Actor* thisx, PlayState* play);
 void ItemShield_Destroy(Actor* thisx, PlayState* play);
@@ -20,7 +34,7 @@ void func_80B86BC8(ItemShield* this, PlayState* play);
 
 static ColliderCylinderInit sCylinderInit = {
     {
-        COLTYPE_NONE,
+        COL_MATERIAL_NONE,
         AT_NONE,
         AC_ON | AC_TYPE_PLAYER,
         OC1_ON | OC1_TYPE_ALL,
@@ -28,17 +42,17 @@ static ColliderCylinderInit sCylinderInit = {
         COLSHAPE_CYLINDER,
     },
     {
-        ELEMTYPE_UNK0,
-        { 0x00000000, 0x00, 0x00 },
-        { 0x00000004, 0x00, 0x00 },
-        TOUCH_NONE,
-        BUMP_ON,
+        ELEM_MATERIAL_UNK0,
+        { 0x00000000, HIT_SPECIAL_EFFECT_NONE, 0x00 },
+        { 0x00000004, HIT_BACKLASH_NONE, 0x00 },
+        ATELEM_NONE,
+        ACELEM_ON,
         OCELEM_ON,
     },
     { 15, 15, 0, { 0, 0, 0 } },
 };
 
-ActorInit Item_Shield_InitVars = {
+ActorProfile Item_Shield_Profile = {
     /**/ ACTOR_ITEM_SHIELD,
     /**/ ACTORCAT_ITEMACTION,
     /**/ FLAGS,
@@ -87,7 +101,7 @@ void ItemShield_Init(Actor* thisx, PlayState* play) {
     Actor_SetScale(&this->actor, 0.01f);
     Collider_InitCylinder(play, &this->collider);
     Collider_SetCylinder(play, &this->collider, &this->actor, &sCylinderInit);
-    osSyncPrintf(VT_FGCOL(GREEN) "Item_Shild %d \n" VT_RST, this->actor.params);
+    PRINTF(VT_FGCOL(GREEN) "Item_Shild %d \n" VT_RST, this->actor.params);
 }
 
 void ItemShield_Destroy(Actor* thisx, PlayState* play) {
@@ -220,8 +234,7 @@ void ItemShield_Draw(Actor* thisx, PlayState* play) {
     if (!(this->unk_19C & 2)) {
         OPEN_DISPS(play->state.gfxCtx, "../z_item_shield.c", 457);
         Gfx_SetupDL_25Opa(play->state.gfxCtx);
-        gSPMatrix(POLY_OPA_DISP++, MATRIX_NEW(play->state.gfxCtx, "../z_item_shield.c", 460),
-                  G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+        MATRIX_FINALIZE_AND_LOAD(POLY_OPA_DISP++, play->state.gfxCtx, "../z_item_shield.c", 460);
         gSPDisplayList(POLY_OPA_DISP++, SEGMENTED_TO_VIRTUAL(gLinkChildDekuShieldDL));
         CLOSE_DISPS(play->state.gfxCtx, "../z_item_shield.c", 465);
     }
